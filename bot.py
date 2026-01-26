@@ -275,7 +275,7 @@ def generate_summary(content: str, url: str = None) -> tuple:
         logger.info(f"Trimit request la Claude API...")
         
         message = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=1500,
             messages=[
                 {
