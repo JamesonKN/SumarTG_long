@@ -12,7 +12,6 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 from telegram.constants import ParseMode
 import anthropic
 import trafilatura
-import httpx
 
 # Configurare logging
 logging.basicConfig(
@@ -215,15 +214,16 @@ def format_summary_html(summary: str, url: str = None) -> str:
     
     formatted_paragraphs = []
     word_count = 0  # Contor global pentru primele 4 cuvinte
+    bold_closed = False
     
-    for para_idx, paragraph in enumerate(paragraphs):
+    for paragraph in paragraphs:
         words = paragraph.split()
         result_words = []
         
         for word in words:
             is_link_word = link_word and link_word in word
             
-            if word_count < 4:
+            if word_count < 4 and not bold_closed:
                 # Primele 4 cuvinte din tot textul - bold
                 if is_link_word and url:
                     word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
@@ -231,6 +231,7 @@ def format_summary_html(summary: str, url: str = None) -> str:
                         result_words.append(f"<b>{word_with_link}")
                     elif word_count == 3:
                         result_words.append(f"{word_with_link}</b>")
+                        bold_closed = True
                     else:
                         result_words.append(word_with_link)
                     link_word = None
@@ -239,6 +240,7 @@ def format_summary_html(summary: str, url: str = None) -> str:
                         result_words.append(f"<b>{word}")
                     elif word_count == 3:
                         result_words.append(f"{word}</b>")
+                        bold_closed = True
                     else:
                         result_words.append(word)
                 word_count += 1
@@ -251,13 +253,11 @@ def format_summary_html(summary: str, url: str = None) -> str:
                 else:
                     result_words.append(word)
         
-        # Dacă bold-ul nu s-a închis (mai puțin de 4 cuvinte total)
-        if word_count <= 4 and result_words:
-            last_word = result_words[-1]
-            if not last_word.endswith("</b>") and "<b>" in " ".join(result_words):
-                result_words[-1] = last_word + "</b>"
-        
         formatted_paragraphs.append(" ".join(result_words))
+    
+    # Dacă nu am ajuns la 4 cuvinte, închide bold-ul
+    if not bold_closed and word_count > 0 and formatted_paragraphs:
+        formatted_paragraphs[-1] = formatted_paragraphs[-1] + "</b>"
     
     # Unește paragrafele cu linie goală
     formatted_text = "\n\n".join(formatted_paragraphs)
@@ -269,17 +269,10 @@ def format_summary_html(summary: str, url: str = None) -> str:
 
 
 def fetch_article_content(url: str) -> str | None:
-    """Descarcă și extrage conținutul unui articol cu timeout."""
+    """Descarcă și extrage conținutul unui articol."""
     try:
         logger.info(f"Încep extragerea articolului de la: {url}")
-        
-        # Folosim httpx cu timeout de 15 secunde
-        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            response = client.get(url, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            })
-            downloaded = response.text
-        
+        downloaded = trafilatura.fetch_url(url)
         if downloaded:
             logger.info("Articol descărcat, extrag conținutul...")
             content = trafilatura.extract(
@@ -291,10 +284,10 @@ def fetch_article_content(url: str) -> str | None:
             logger.info(f"Conținut extras: {len(content) if content else 0} caractere")
             return content
         logger.warning("Nu am putut descărca articolul")
-    except httpx.TimeoutException:
-        logger.error(f"Timeout la descărcarea articolului: {url}")
+        return None
     except Exception as e:
         logger.error(f"Eroare la extragerea conținutului: {e}")
+        return None
     return None
 
 
