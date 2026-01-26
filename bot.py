@@ -184,11 +184,14 @@ def filter_article_urls(urls: list) -> list:
 
 
 def format_summary_html(summary: str, url: str = None) -> str:
-    """Formatează rezumatul cu HTML: primele 4 cuvinte bold + link pe cuvântul marcat."""
+    """Formatează rezumatul cu HTML: primele 4 cuvinte bold + link pe cuvântul marcat. Păstrează paragrafele."""
     
     summary = summary.replace("**", "").replace("*", "").replace("__", "")
     summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     
+    # Separă emoji de text
+    emoji_part = ""
+    text_part = summary
     if len(summary) > 0 and not summary[0].isalnum() and summary[0] not in '([{':
         i = 0
         while i < len(summary):
@@ -197,51 +200,66 @@ def format_summary_html(summary: str, url: str = None) -> str:
             i += 1
         emoji_part = summary[:i].rstrip()
         text_part = summary[i:].lstrip()
-    else:
-        emoji_part = ""
-        text_part = summary
     
+    # Găsește și extrage cuvântul marcat cu {{cuvânt}}
     link_word = None
     link_word_match = re.search(r'\{+([^}]+)\}+', text_part)
     if link_word_match:
         link_word = link_word_match.group(1)
         text_part = text_part[:link_word_match.start()] + link_word + text_part[link_word_match.end():]
     
-    words = text_part.split()
-    result_words = []
+    # Împarte pe paragrafe (păstrează structura)
+    paragraphs = re.split(r'\n\s*\n|\n', text_part)
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
     
-    for i, word in enumerate(words):
-        is_link_word = link_word and link_word in word
+    formatted_paragraphs = []
+    word_count = 0  # Contor global pentru primele 4 cuvinte
+    
+    for para_idx, paragraph in enumerate(paragraphs):
+        words = paragraph.split()
+        result_words = []
         
-        if i < 4:
-            if is_link_word and url:
-                word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
-                if i == 0:
-                    result_words.append(f"<b>{word_with_link}")
-                elif i == 3:
-                    result_words.append(f"{word_with_link}</b>")
+        for word in words:
+            is_link_word = link_word and link_word in word
+            
+            if word_count < 4:
+                # Primele 4 cuvinte din tot textul - bold
+                if is_link_word and url:
+                    word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
+                    if word_count == 0:
+                        result_words.append(f"<b>{word_with_link}")
+                    elif word_count == 3:
+                        result_words.append(f"{word_with_link}</b>")
+                    else:
+                        result_words.append(word_with_link)
+                    link_word = None
                 else:
-                    result_words.append(word_with_link)
-                link_word = None
+                    if word_count == 0:
+                        result_words.append(f"<b>{word}")
+                    elif word_count == 3:
+                        result_words.append(f"{word}</b>")
+                    else:
+                        result_words.append(word)
+                word_count += 1
             else:
-                if i == 0:
-                    result_words.append(f"<b>{word}")
-                elif i == 3:
-                    result_words.append(f"{word}</b>")
+                # După primele 4 cuvinte - normal
+                if is_link_word and url:
+                    word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
+                    result_words.append(word_with_link)
+                    link_word = None
                 else:
                     result_words.append(word)
-        else:
-            if is_link_word and url:
-                word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
-                result_words.append(word_with_link)
-                link_word = None
-            else:
-                result_words.append(word)
+        
+        # Dacă bold-ul nu s-a închis (mai puțin de 4 cuvinte total)
+        if word_count <= 4 and result_words:
+            last_word = result_words[-1]
+            if not last_word.endswith("</b>") and "<b>" in " ".join(result_words):
+                result_words[-1] = last_word + "</b>"
+        
+        formatted_paragraphs.append(" ".join(result_words))
     
-    if len(words) > 0 and len(words) < 4:
-        result_words[-1] = result_words[-1] + "</b>"
-    
-    formatted_text = " ".join(result_words)
+    # Unește paragrafele cu linie goală
+    formatted_text = "\n\n".join(formatted_paragraphs)
     
     if emoji_part:
         return f"{emoji_part} {formatted_text}"
