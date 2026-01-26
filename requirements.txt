@@ -1,0 +1,3 @@
+python-telegram-bot==21.0.1
+anthropic==0.18.1
+trafilatura==1.8.0
