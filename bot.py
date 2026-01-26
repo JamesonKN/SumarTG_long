@@ -38,32 +38,34 @@ SUMMARY_PROMPT_WITH_URL = """Ești un editor de știri. Primești un articol și
 
 REGULI STRICTE:
 1. Rezumatul trebuie să aibă EXACT 850-950 de caractere (nu cuvinte, caractere!)
-2. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
-3. NU pune bold, italic sau alte formatări
-4. NU pune link-uri în text, voi adăuga eu după
-5. Scrie la persoana a 3-a, stil jurnalistic neutru
-6. Dacă articolul e în altă limbă, traduci rezumatul în română
-7. Marchează UN SINGUR cuvânt cheie cu acolade, exemplu: {{atacat}} - acesta va deveni link
+2. Împarte rezumatul în 2-3 paragrafe scurte, separate prin linie goală
+3. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
+4. NU pune bold, italic sau alte formatări
+5. NU pune link-uri în text, voi adăuga eu după
+6. Scrie la persoana a 3-a, stil jurnalistic neutru
+7. Dacă articolul e în altă limbă, traduci rezumatul în română
+8. Marchează UN SINGUR cuvânt cheie cu acolade, exemplu: {{atacat}} - acesta va deveni link
 
 ARTICOL:
 {content}
 
-Răspunde DOAR cu rezumatul (emoji + text cu un cuvânt în acolade), nimic altceva."""
+Răspunde DOAR cu rezumatul (emoji + text cu un cuvânt în acolade, în 2-3 paragrafe), nimic altceva."""
 
 # Prompt pentru text fără URL
 SUMMARY_PROMPT_NO_URL = """Ești un editor de știri. Primești un text și trebuie să creezi un rezumat în ROMÂNĂ.
 
 REGULI STRICTE:
 1. Rezumatul trebuie să aibă EXACT 850-950 de caractere (nu cuvinte, caractere!)
-2. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
-3. NU pune bold, italic, link-uri sau alte formatări
-4. Scrie la persoana a 3-a, stil jurnalistic neutru
-5. Dacă textul e în altă limbă, traduci rezumatul în română
+2. Împarte rezumatul în 2-3 paragrafe scurte, separate prin linie goală
+3. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
+4. NU pune bold, italic, link-uri sau alte formatări
+5. Scrie la persoana a 3-a, stil jurnalistic neutru
+6. Dacă textul e în altă limbă, traduci rezumatul în română
 
 TEXT:
 {content}
 
-Răspunde DOAR cu rezumatul (emoji + text), nimic altceva."""
+Răspunde DOAR cu rezumatul (emoji + text, în 2-3 paragrafe), nimic altceva."""
 
 
 def clean_telegram_footer(text: str) -> str:
