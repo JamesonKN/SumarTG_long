@@ -184,7 +184,7 @@ def filter_article_urls(urls: list) -> list:
 
 
 def format_summary_html(summary: str, url: str = None) -> str:
-    """Formatează rezumatul cu HTML: primele 4 cuvinte bold + link pe cuvântul marcat. Păstrează paragrafele."""
+    """Formatează rezumatul cu HTML: fiecare paragraf începe cu (...) și primele 3 cuvinte bold."""
     
     summary = summary.replace("**", "").replace("*", "").replace("__", "")
     summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -213,39 +213,34 @@ def format_summary_html(summary: str, url: str = None) -> str:
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
     
     formatted_paragraphs = []
-    word_count = 0  # Contor global pentru primele 4 cuvinte
-    bold_closed = False
     
-    for paragraph in paragraphs:
+    for para_idx, paragraph in enumerate(paragraphs):
         words = paragraph.split()
         result_words = []
         
-        for word in words:
+        for word_idx, word in enumerate(words):
             is_link_word = link_word and link_word in word
             
-            if word_count < 4 and not bold_closed:
-                # Primele 4 cuvinte din tot textul - bold
+            if word_idx < 3:
+                # Primele 3 cuvinte din fiecare paragraf - bold
                 if is_link_word and url:
                     word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
-                    if word_count == 0:
+                    if word_idx == 0:
                         result_words.append(f"<b>{word_with_link}")
-                    elif word_count == 3:
+                    elif word_idx == 2:
                         result_words.append(f"{word_with_link}</b>")
-                        bold_closed = True
                     else:
                         result_words.append(word_with_link)
                     link_word = None
                 else:
-                    if word_count == 0:
+                    if word_idx == 0:
                         result_words.append(f"<b>{word}")
-                    elif word_count == 3:
+                    elif word_idx == 2:
                         result_words.append(f"{word}</b>")
-                        bold_closed = True
                     else:
                         result_words.append(word)
-                word_count += 1
             else:
-                # După primele 4 cuvinte - normal
+                # După primele 3 cuvinte - normal
                 if is_link_word and url:
                     word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
                     result_words.append(word_with_link)
@@ -253,11 +248,17 @@ def format_summary_html(summary: str, url: str = None) -> str:
                 else:
                     result_words.append(word)
         
-        formatted_paragraphs.append(" ".join(result_words))
-    
-    # Dacă nu am ajuns la 4 cuvinte, închide bold-ul
-    if not bold_closed and word_count > 0 and formatted_paragraphs:
-        formatted_paragraphs[-1] = formatted_paragraphs[-1] + "</b>"
+        # Dacă paragraful are mai puțin de 3 cuvinte, închide bold-ul
+        if len(words) > 0 and len(words) < 3:
+            result_words[-1] = result_words[-1] + "</b>"
+        
+        formatted_para = " ".join(result_words)
+        
+        # Adaugă (...) la începutul paragrafelor (nu la primul)
+        if para_idx > 0:
+            formatted_para = "(...) " + formatted_para
+        
+        formatted_paragraphs.append(formatted_para)
     
     # Unește paragrafele cu linie goală
     formatted_text = "\n\n".join(formatted_paragraphs)
