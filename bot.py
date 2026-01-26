@@ -31,8 +31,8 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # Configurări lungimi
 LENGTH_CONFIG = {
-    "scurt": {"min": 250, "max": 300, "paragraphs": "1-2"},
-    "mediu": {"min": 500, "max": 600, "paragraphs": "2-3"},
+    "scurt": {"min": 250, "max": 300, "paragraphs": "1"},
+    "mediu": {"min": 500, "max": 600, "paragraphs": "2"},
     "lung": {"min": 850, "max": 950, "paragraphs": "2-3"},
 }
 
@@ -42,12 +42,13 @@ MAX_BATCH_LINKS = 7
 def get_prompt(length_type: str, has_url: bool) -> str:
     """Generează prompt-ul în funcție de lungime și tip."""
     config = LENGTH_CONFIG.get(length_type, LENGTH_CONFIG["lung"])
+    para_text = "un singur paragraf" if config["paragraphs"] == "1" else f"{config['paragraphs']} paragrafe scurte, separate prin linie goală"
     
     base_prompt = f"""Ești un editor de știri. Primești un {"articol" if has_url else "text"} și trebuie să creezi un rezumat în ROMÂNĂ.
 
 REGULI STRICTE:
 1. Rezumatul trebuie să aibă EXACT {config["min"]}-{config["max"]} de caractere (nu cuvinte, caractere!)
-2. Împarte rezumatul în {config["paragraphs"]} paragrafe scurte, separate prin linie goală
+2. Scrie rezumatul în {para_text}
 3. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
 4. NU pune bold, italic sau alte formatări
 5. NU pune link-uri în text
@@ -58,7 +59,7 @@ REGULI STRICTE:
 {"ARTICOL" if has_url else "TEXT"}:
 {{content}}
 
-Răspunde DOAR cu rezumatul (emoji + text{"cu un cuvânt în acolade" if has_url else ""}, în {config["paragraphs"]} paragrafe), nimic altceva."""
+Răspunde DOAR cu rezumatul (emoji + text{"cu un cuvânt în acolade" if has_url else ""}), nimic altceva."""
     
     return base_prompt
 
