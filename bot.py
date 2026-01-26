@@ -271,8 +271,10 @@ def format_summary_html(summary: str, url: str = None) -> str:
 def fetch_article_content(url: str) -> str | None:
     """Descarcă și extrage conținutul unui articol."""
     try:
+        print(f"fetch_article_content START: {url}", flush=True)
         logger.info(f"Încep extragerea articolului de la: {url}")
         downloaded = trafilatura.fetch_url(url)
+        print(f"trafilatura.fetch_url DONE: {len(downloaded) if downloaded else 0} bytes", flush=True)
         if downloaded:
             logger.info("Articol descărcat, extrag conținutul...")
             content = trafilatura.extract(
@@ -281,11 +283,13 @@ def fetch_article_content(url: str) -> str | None:
                 include_tables=False,
                 no_fallback=False
             )
+            print(f"trafilatura.extract DONE: {len(content) if content else 0} chars", flush=True)
             logger.info(f"Conținut extras: {len(content) if content else 0} caractere")
             return content
         logger.warning("Nu am putut descărca articolul")
         return None
     except Exception as e:
+        print(f"fetch_article_content ERROR: {e}", flush=True)
         logger.error(f"Eroare la extragerea conținutului: {e}")
         return None
     return None
@@ -299,6 +303,7 @@ def generate_summary(content: str, url: str = None) -> tuple:
         else:
             prompt = SUMMARY_PROMPT_NO_URL.format(content=content[:15000])
         
+        print(f"Trimit request la Claude API...", flush=True)
         logger.info(f"Trimit request la Claude API...")
         
         message = client.messages.create(
@@ -311,7 +316,9 @@ def generate_summary(content: str, url: str = None) -> tuple:
                 }
             ]
         )
+        print(f"Răspuns primit de la Claude!", flush=True)
         raw_summary = message.content[0].text
+        print(f"Raw summary length: {len(raw_summary)}", flush=True)
         logger.info(f"Raw summary: {raw_summary}")
         
         try:
@@ -368,6 +375,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     article_urls = filter_article_urls(all_urls)
     cleaned_text = clean_telegram_footer(text)
     
+    print(f"=== MESAJ NOU ===", flush=True)
+    print(f"Text length: {len(text)}", flush=True)
+    print(f"Article URLs: {article_urls}", flush=True)
     logger.info(f"Original text length: {len(text)}, Cleaned text length: {len(cleaned_text)}")
     logger.info(f"All URLs: {all_urls}")
     logger.info(f"Article URLs: {article_urls}")
@@ -376,8 +386,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         url = article_urls[0]
         processing_msg = await update.message.reply_text("⏳ Procesez articolul...")
         
+        print(f"Extrag articol de la: {url}", flush=True)
         logger.info(f"Extrag articol de la: {url}")
         content = fetch_article_content(url)
+        print(f"Content extras: {len(content) if content else 0} chars", flush=True)
         
         if not content:
             await processing_msg.edit_text(
