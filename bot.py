@@ -1,6 +1,8 @@
 """
 Telegram Bot pentru rezumate de articole
-Forwardezi un link sau text → Primești rezumat în română (850-950 caractere)
+Comenzi: /scurt (250-300), /mediu (500-600), /lung (850-950)
+Batch: max 7 linkuri → rezumate scurte
+Default fără comandă: lung
 """
 
 import os
@@ -24,69 +26,50 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-# Verificare la startup
-if ANTHROPIC_API_KEY:
-    logger.info(f"ANTHROPIC_API_KEY setat (primele 10 char): {ANTHROPIC_API_KEY[:10]}...")
-else:
-    logger.error("ANTHROPIC_API_KEY NU este setat!")
-
 # Inițializare client Anthropic
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# Prompt pentru articole cu URL
-SUMMARY_PROMPT_WITH_URL = """Ești un editor de știri. Primești un articol și trebuie să creezi un rezumat în ROMÂNĂ.
+# Configurări lungimi
+LENGTH_CONFIG = {
+    "scurt": {"min": 250, "max": 300, "paragraphs": "1-2"},
+    "mediu": {"min": 500, "max": 600, "paragraphs": "2-3"},
+    "lung": {"min": 850, "max": 950, "paragraphs": "2-3"},
+}
+
+MAX_BATCH_LINKS = 7
+
+
+def get_prompt(length_type: str, has_url: bool) -> str:
+    """Generează prompt-ul în funcție de lungime și tip."""
+    config = LENGTH_CONFIG.get(length_type, LENGTH_CONFIG["lung"])
+    
+    base_prompt = f"""Ești un editor de știri. Primești un {"articol" if has_url else "text"} și trebuie să creezi un rezumat în ROMÂNĂ.
 
 REGULI STRICTE:
-1. Rezumatul trebuie să aibă EXACT 850-950 de caractere (nu cuvinte, caractere!)
-2. Împarte rezumatul în 2-3 paragrafe scurte, separate prin linie goală
+1. Rezumatul trebuie să aibă EXACT {config["min"]}-{config["max"]} de caractere (nu cuvinte, caractere!)
+2. Împarte rezumatul în {config["paragraphs"]} paragrafe scurte, separate prin linie goală
 3. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
 4. NU pune bold, italic sau alte formatări
-5. NU pune link-uri în text, voi adăuga eu după
+5. NU pune link-uri în text
 6. Scrie la persoana a 3-a, stil jurnalistic neutru
-7. Dacă articolul e în altă limbă, traduci rezumatul în română
-8. Marchează UN SINGUR cuvânt cheie cu acolade, exemplu: {{atacat}} - acesta va deveni link
+7. Dacă {"articolul" if has_url else "textul"} e în altă limbă, traduci rezumatul în română
+{"8. Marchează UN SINGUR cuvânt cheie cu acolade, exemplu: {{atacat}} - acesta va deveni link" if has_url else ""}
 
-ARTICOL:
-{content}
+{"ARTICOL" if has_url else "TEXT"}:
+{{content}}
 
-Răspunde DOAR cu rezumatul (emoji + text cu un cuvânt în acolade, în 2-3 paragrafe), nimic altceva."""
-
-# Prompt pentru text fără URL
-SUMMARY_PROMPT_NO_URL = """Ești un editor de știri. Primești un text și trebuie să creezi un rezumat în ROMÂNĂ.
-
-REGULI STRICTE:
-1. Rezumatul trebuie să aibă EXACT 850-950 de caractere (nu cuvinte, caractere!)
-2. Împarte rezumatul în 2-3 paragrafe scurte, separate prin linie goală
-3. Începe cu un singur emoji relevant pentru subiect (politică=🏛️, economie=💰, tehnologie=💻, război/conflict=⚔️, UE=🇪🇺, Moldova=🇲🇩, România=🇷🇴, Rusia=🇷🇺, SUA=🇺🇸, sport=⚽, sănătate=🏥, mediu=🌍, etc.)
-4. NU pune bold, italic, link-uri sau alte formatări
-5. Scrie la persoana a 3-a, stil jurnalistic neutru
-6. Dacă textul e în altă limbă, traduci rezumatul în română
-
-TEXT:
-{content}
-
-Răspunde DOAR cu rezumatul (emoji + text, în 2-3 paragrafe), nimic altceva."""
+Răspunde DOAR cu rezumatul (emoji + text{"cu un cuvânt în acolade" if has_url else ""}, în {config["paragraphs"]} paragrafe), nimic altceva."""
+    
+    return base_prompt
 
 
 def clean_telegram_footer(text: str) -> str:
-    """Curăță footerele de Telegram (subscribe links, promo, etc.)."""
-    
+    """Curăță footerele de Telegram."""
     footer_patterns = [
-        r'Подписаться на .*$',
-        r'Подпишись на .*$',
-        r'Подписывайтесь.*$',
-        r'Прислать контент.*$',
-        r'Наш канал.*$',
-        r'Читать далее.*$',
-        r'Источник.*$',
-        r'Subscribe to .*$',
-        r'Follow us.*$',
-        r'Join our.*$',
-        r'Send content.*$',
-        r'Abonează-te la .*$',
-        r'Urmărește-ne.*$',
-        r'Canalul nostru.*$',
-        r'\s*\|\s*$',
+        r'Подписаться на .*$', r'Подпишись на .*$', r'Подписывайтесь.*$',
+        r'Прислать контент.*$', r'Наш канал.*$', r'Читать далее.*$', r'Источник.*$',
+        r'Subscribe to .*$', r'Follow us.*$', r'Join our.*$', r'Send content.*$',
+        r'Abonează-te la .*$', r'Urmărește-ne.*$', r'Canalul nostru.*$', r'\s*\|\s*$',
     ]
     
     lines = text.split('\n')
@@ -94,126 +77,84 @@ def clean_telegram_footer(text: str) -> str:
     
     for line in lines:
         is_footer = False
-        
         for pattern in footer_patterns:
             if re.search(pattern, line, re.IGNORECASE):
                 is_footer = True
                 break
-        
         if re.match(r'^\s*https?://t\.me/\S*\s*$', line):
             is_footer = True
-        
         if re.match(r'^[\s|/]*https?://\S+[\s|/]*$', line):
             is_footer = True
-            
         if not is_footer:
             cleaned_lines.append(line)
     
     cleaned_text = '\n'.join(cleaned_lines)
     cleaned_text = re.sub(r'\s*\(https?://t\.me/[^)]+\)', '', cleaned_text)
-    cleaned_text = re.sub(r'\s*\(https?://max\.ru/[^)]+\)', '', cleaned_text)
     cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
-    cleaned_text = cleaned_text.strip()
-    
-    return cleaned_text
+    return cleaned_text.strip()
 
 
 def extract_urls_from_entities(message) -> list:
-    """Extrage URL-uri din entities (link-uri pe cuvinte) și din text."""
+    """Extrage URL-uri din mesaj."""
     urls = []
-    
     text = message.text or message.caption or ""
     entities = message.entities or message.caption_entities or []
     
     for entity in entities:
         if entity.type == MessageEntity.URL:
-            url = text[entity.offset:entity.offset + entity.length]
-            urls.append(url)
+            urls.append(text[entity.offset:entity.offset + entity.length])
         elif entity.type == MessageEntity.TEXT_LINK:
             urls.append(entity.url)
     
-    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
-    text_urls = re.findall(url_pattern, text)
+    text_urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', text)
     urls.extend(text_urls)
     
-    seen = set()
-    unique_urls = []
-    for url in urls:
-        if url not in seen:
-            seen.add(url)
-            unique_urls.append(url)
-    
-    return unique_urls
+    return list(dict.fromkeys(urls))  # Unique, păstrează ordinea
 
 
 def filter_article_urls(urls: list) -> list:
-    """Filtrează URL-urile, păstrând doar cele către articole."""
-    
-    ignore_domains = [
-        't.me',
-        'telegram.me',
-        'max.ru',
-        'twitter.com',
-        'x.com',
-        'facebook.com',
-        'instagram.com',
-        'tiktok.com',
-        'youtube.com',
-        'youtu.be',
-    ]
+    """Filtrează doar URL-uri către articole."""
+    ignore_domains = ['t.me', 'telegram.me', 'twitter.com', 'x.com', 
+                      'facebook.com', 'instagram.com', 'tiktok.com', 'youtube.com', 'youtu.be']
     
     article_urls = []
-    
     for url in urls:
         try:
             domain = urlparse(url).netloc.lower()
-            
-            is_ignored = False
-            for ignore in ignore_domains:
-                if ignore in domain:
-                    is_ignored = True
-                    break
-            
-            if not is_ignored:
+            if not any(ignore in domain for ignore in ignore_domains):
                 article_urls.append(url)
-                
         except:
             pass
-    
     return article_urls
 
 
 def format_summary_html(summary: str, url: str = None) -> str:
-    """Formatează rezumatul cu HTML: fiecare paragraf începe cu (...) și primele 3 cuvinte bold."""
-    
+    """Formatează rezumatul cu HTML."""
     summary = summary.replace("**", "").replace("*", "").replace("__", "")
     summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     
-    # Separă emoji de text
+    # Separă emoji
     emoji_part = ""
     text_part = summary
     if len(summary) > 0 and not summary[0].isalnum() and summary[0] not in '([{':
         i = 0
-        while i < len(summary):
-            if summary[i].isalnum():
-                break
+        while i < len(summary) and not summary[i].isalnum():
             i += 1
         emoji_part = summary[:i].rstrip()
         text_part = summary[i:].lstrip()
     
-    # Găsește și extrage cuvântul marcat cu {{cuvânt}}
+    # Găsește cuvântul marcat
     link_word = None
     link_word_match = re.search(r'\{+([^}]+)\}+', text_part)
     if link_word_match:
         link_word = link_word_match.group(1)
         text_part = text_part[:link_word_match.start()] + link_word + text_part[link_word_match.end():]
     
-    # Împarte pe paragrafe (păstrează structura)
+    # Procesează paragrafe
     paragraphs = re.split(r'\n\s*\n|\n', text_part)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
     
     formatted_paragraphs = []
-    
     for para_idx, paragraph in enumerate(paragraphs):
         words = paragraph.split()
         result_words = []
@@ -222,7 +163,6 @@ def format_summary_html(summary: str, url: str = None) -> str:
             is_link_word = link_word and link_word in word
             
             if word_idx < 3:
-                # Primele 3 cuvinte din fiecare paragraf - bold
                 if is_link_word and url:
                     word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
                     if word_idx == 0:
@@ -240,196 +180,189 @@ def format_summary_html(summary: str, url: str = None) -> str:
                     else:
                         result_words.append(word)
             else:
-                # După primele 3 cuvinte - normal
                 if is_link_word and url:
-                    word_with_link = word.replace(link_word, f'<a href="{url}">{link_word}</a>')
-                    result_words.append(word_with_link)
+                    result_words.append(word.replace(link_word, f'<a href="{url}">{link_word}</a>'))
                     link_word = None
                 else:
                     result_words.append(word)
         
-        # Dacă paragraful are mai puțin de 3 cuvinte, închide bold-ul
         if len(words) > 0 and len(words) < 3:
             result_words[-1] = result_words[-1] + "</b>"
         
         formatted_para = " ".join(result_words)
-        
-        # Adaugă (...) la începutul paragrafelor (nu la primul)
         if para_idx > 0:
             formatted_para = "(...) " + formatted_para
-        
         formatted_paragraphs.append(formatted_para)
     
-    # Unește paragrafele cu linie goală
     formatted_text = "\n\n".join(formatted_paragraphs)
-    
-    if emoji_part:
-        return f"{emoji_part} {formatted_text}"
-    else:
-        return formatted_text
+    return f"{emoji_part} {formatted_text}" if emoji_part else formatted_text
 
 
 def fetch_article_content(url: str) -> str | None:
     """Descarcă și extrage conținutul unui articol."""
     try:
-        print(f"fetch_article_content START: {url}", flush=True)
-        logger.info(f"Încep extragerea articolului de la: {url}")
         downloaded = trafilatura.fetch_url(url)
-        print(f"trafilatura.fetch_url DONE: {len(downloaded) if downloaded else 0} bytes", flush=True)
         if downloaded:
-            logger.info("Articol descărcat, extrag conținutul...")
-            content = trafilatura.extract(
-                downloaded,
-                include_comments=False,
-                include_tables=False,
-                no_fallback=False
-            )
-            print(f"trafilatura.extract DONE: {len(content) if content else 0} chars", flush=True)
-            logger.info(f"Conținut extras: {len(content) if content else 0} caractere")
-            return content
-        logger.warning("Nu am putut descărca articolul")
-        return None
+            return trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
     except Exception as e:
-        print(f"fetch_article_content ERROR: {e}", flush=True)
-        logger.error(f"Eroare la extragerea conținutului: {e}")
-        return None
+        logger.error(f"Eroare extragere: {e}")
     return None
 
 
-def generate_summary(content: str, url: str = None) -> tuple:
-    """Generează rezumat folosind Claude API. Returnează (rezumat, eroare)."""
+def generate_summary(content: str, url: str = None, length_type: str = "lung") -> tuple:
+    """Generează rezumat. Returnează (rezumat, eroare)."""
     try:
-        if url:
-            prompt = SUMMARY_PROMPT_WITH_URL.format(content=content[:15000])
-        else:
-            prompt = SUMMARY_PROMPT_NO_URL.format(content=content[:15000])
-        
-        print(f"Trimit request la Claude API...", flush=True)
-        logger.info(f"Trimit request la Claude API...")
+        prompt_template = get_prompt(length_type, has_url=bool(url))
+        prompt = prompt_template.format(content=content[:15000])
         
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1500,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            messages=[{"role": "user", "content": prompt}]
         )
-        print(f"Răspuns primit de la Claude!", flush=True)
+        
         raw_summary = message.content[0].text
-        print(f"Raw summary length: {len(raw_summary)}", flush=True)
-        logger.info(f"Raw summary: {raw_summary}")
-        
-        try:
-            formatted = format_summary_html(raw_summary, url)
-            logger.info(f"Formatted summary: {formatted}")
-        except Exception as e:
-            logger.error(f"Eroare la formatare: {e}")
-            # Returnează textul brut dacă formatarea eșuează
-            formatted = raw_summary
-        
+        formatted = format_summary_html(raw_summary, url)
         return formatted, None
-    except anthropic.AuthenticationError as e:
-        logger.error(f"Eroare autentificare: {e}")
-        return None, "Cheie API invalidă sau expirată"
-    except anthropic.RateLimitError as e:
-        logger.error(f"Rate limit: {e}")
-        return None, "Prea multe cereri. Așteaptă câteva secunde."
+        
+    except anthropic.AuthenticationError:
+        return None, "Cheie API invalidă"
+    except anthropic.RateLimitError:
+        return None, "Prea multe cereri"
     except anthropic.APIError as e:
-        logger.error(f"API Error: {e}")
         return None, f"Eroare API: {str(e)[:100]}"
     except Exception as e:
-        logger.error(f"Eroare Claude API: {type(e).__name__}: {e}")
         return None, f"{type(e).__name__}: {str(e)[:100]}"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler pentru comanda /start."""
-    welcome_message = (
-        "👋 Salut! Sunt botul tău pentru rezumate de știri.\n\n"
-        "📝 <b>Cum mă folosești:</b>\n"
-        "• Trimite un link către un articol\n"
-        "• Trimite un text cu link-uri\n"
-        "• Sau trimite direct text pentru rezumat\n\n"
-        "✨ <b>Ce primești:</b>\n"
-        "Un rezumat de 850-950 caractere în română, "
-        "cu emoji relevant și formatare pentru Telegram/newsletter.\n\n"
-        "🚀 Trimite primul mesaj!"
+    """Handler pentru /start."""
+    welcome = (
+        "👋 Salut! Sunt botul pentru rezumate de știri.\n\n"
+        "📝 <b>Comenzi:</b>\n"
+        "• <code>/scurt link</code> → 250-300 caractere\n"
+        "• <code>/mediu link</code> → 500-600 caractere\n"
+        "• <code>/lung link</code> → 850-950 caractere\n"
+        "• Link fără comandă → lung (default)\n\n"
+        "📦 <b>Batch:</b> Trimite până la 7 linkuri (pe linii separate) → rezumate scurte\n\n"
+        "🚀 Trimite primul link!"
     )
-    await update.message.reply_text(welcome_message, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(welcome, parse_mode=ParseMode.HTML)
+
+
+async def process_single_article(url: str, length_type: str) -> str:
+    """Procesează un singur articol și returnează rezumatul."""
+    content = fetch_article_content(url)
+    if not content:
+        return f"❌ Nu am putut extrage: {url[:50]}..."
+    
+    summary, error = generate_summary(content, url, length_type)
+    if not summary:
+        return f"❌ Eroare pentru {url[:50]}...: {error}"
+    
+    return summary
+
+
+async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TYPE, length_type: str):
+    """Handler comun pentru comenzile /scurt, /mediu, /lung."""
+    text = update.message.text or ""
+    
+    # Extrage linkurile din mesaj (după comandă)
+    urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', text)
+    article_urls = filter_article_urls(urls)
+    
+    if not article_urls:
+        await update.message.reply_text(f"❌ Folosește: /{length_type} https://link-articol.com")
+        return
+    
+    processing_msg = await update.message.reply_text("⏳ Procesez...")
+    
+    # Un singur link
+    if len(article_urls) == 1:
+        summary = await process_single_article(article_urls[0], length_type)
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+    else:
+        # Batch - max 7, folosește tipul specificat
+        urls_to_process = article_urls[:MAX_BATCH_LINKS]
+        summaries = []
+        
+        for i, url in enumerate(urls_to_process):
+            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
+            summary = await process_single_article(url, length_type)
+            summaries.append(summary)
+        
+        final_text = "\n\n".join(summaries)
+        
+        # Telegram are limită de 4096 caractere
+        if len(final_text) > 4000:
+            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
+        
+        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
+
+
+async def scurt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "scurt")
+
+async def mediu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "mediu")
+
+async def lung_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "lung")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler principal pentru mesaje."""
-    
+    """Handler pentru mesaje fără comandă."""
     text = update.message.text or update.message.caption or ""
     
     if not text.strip():
-        await update.message.reply_text(
-            "❌ Mesajul e gol. Trimite-mi un link sau un text."
-        )
+        await update.message.reply_text("❌ Mesajul e gol.")
         return
     
     all_urls = extract_urls_from_entities(update.message)
     article_urls = filter_article_urls(all_urls)
-    cleaned_text = clean_telegram_footer(text)
     
-    print(f"=== MESAJ NOU ===", flush=True)
-    print(f"Text length: {len(text)}", flush=True)
-    print(f"Article URLs: {article_urls}", flush=True)
-    logger.info(f"Original text length: {len(text)}, Cleaned text length: {len(cleaned_text)}")
-    logger.info(f"All URLs: {all_urls}")
-    logger.info(f"Article URLs: {article_urls}")
-    
-    if article_urls:
-        url = article_urls[0]
-        processing_msg = await update.message.reply_text("⏳ Procesez articolul...")
-        
-        print(f"Extrag articol de la: {url}", flush=True)
-        logger.info(f"Extrag articol de la: {url}")
-        content = fetch_article_content(url)
-        print(f"Content extras: {len(content) if content else 0} chars", flush=True)
-        
-        if not content:
-            await processing_msg.edit_text(
-                "❌ Nu am putut extrage conținutul articolului. "
-                "Verifică dacă link-ul e accesibil sau lipește textul direct."
-            )
-            return
-        
-        logger.info("Generez rezumatul...")
-        summary, error = generate_summary(content, url)
-        logger.info(f"Rezumat generat: {summary[:100] if summary else 'None'}...")
-    else:
+    if not article_urls:
+        # Text fără URL - rezumat lung din text
+        cleaned_text = clean_telegram_footer(text)
         if len(cleaned_text) < 50:
-            await update.message.reply_text(
-                "❌ Textul e prea scurt pentru un rezumat. Trimite cel puțin 50 de caractere."
-            )
+            await update.message.reply_text("❌ Textul e prea scurt.")
             return
         
         processing_msg = await update.message.reply_text("⏳ Procesez textul...")
-        logger.info("Generez rezumatul din text...")
-        summary, error = generate_summary(cleaned_text, url=None)
-        logger.info(f"Rezumat generat: {summary[:100] if summary else 'None'}...")
-    
-    if not summary:
-        error_msg = f"❌ Eroare la generarea rezumatului.\n\n🔍 Detalii: {error}" if error else "❌ Eroare la generarea rezumatului. Încearcă din nou."
-        await processing_msg.edit_text(error_msg)
+        summary, error = generate_summary(cleaned_text, url=None, length_type="lung")
+        
+        if not summary:
+            await processing_msg.edit_text(f"❌ Eroare: {error}")
+            return
+        
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
         return
     
-    try:
+    processing_msg = await update.message.reply_text("⏳ Procesez...")
+    
+    # Un singur link - rezumat LUNG (default)
+    if len(article_urls) == 1:
+        summary = await process_single_article(article_urls[0], "lung")
         await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Eroare la trimiterea mesajului: {e}")
-        # Încearcă fără HTML dacă formatarea e problematică
-        await processing_msg.edit_text(summary.replace("<b>", "").replace("</b>", "").replace("</a>", "").replace(f'<a href="{url}">', "") if url else summary)
-
-
-async def handle_forwarded(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler pentru mesaje forwardate."""
-    await handle_message(update, context)
+    else:
+        # Batch - max 7, rezumate SCURTE
+        urls_to_process = article_urls[:MAX_BATCH_LINKS]
+        summaries = []
+        
+        for i, url in enumerate(urls_to_process):
+            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
+            summary = await process_single_article(url, "scurt")
+            summaries.append(summary)
+        
+        final_text = "\n\n".join(summaries)
+        
+        if len(final_text) > 4000:
+            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
+        
+        if len(article_urls) > MAX_BATCH_LINKS:
+            final_text += f"\n\n⚠️ Am procesat doar primele {MAX_BATCH_LINKS} linkuri."
+        
+        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
 
 
 def main():
@@ -441,15 +374,15 @@ def main():
     
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
+    # Comenzi
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        handle_message
-    ))
-    application.add_handler(MessageHandler(
-        filters.FORWARDED,
-        handle_forwarded
-    ))
+    application.add_handler(CommandHandler("scurt", scurt_command))
+    application.add_handler(CommandHandler("mediu", mediu_command))
+    application.add_handler(CommandHandler("lung", lung_command))
+    
+    # Mesaje text
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.FORWARDED, handle_message))
     
     logger.info("Botul pornește...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
