@@ -12,6 +12,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 from telegram.constants import ParseMode
 import anthropic
 import trafilatura
+import httpx
 
 # Configurare logging
 logging.basicConfig(
@@ -268,17 +269,30 @@ def format_summary_html(summary: str, url: str = None) -> str:
 
 
 def fetch_article_content(url: str) -> str | None:
-    """Descarcă și extrage conținutul unui articol."""
+    """Descarcă și extrage conținutul unui articol cu timeout."""
     try:
-        downloaded = trafilatura.fetch_url(url)
+        logger.info(f"Încep extragerea articolului de la: {url}")
+        
+        # Folosim httpx cu timeout de 15 secunde
+        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            response = client.get(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            downloaded = response.text
+        
         if downloaded:
+            logger.info("Articol descărcat, extrag conținutul...")
             content = trafilatura.extract(
                 downloaded,
                 include_comments=False,
                 include_tables=False,
                 no_fallback=False
             )
+            logger.info(f"Conținut extras: {len(content) if content else 0} caractere")
             return content
+        logger.warning("Nu am putut descărca articolul")
+    except httpx.TimeoutException:
+        logger.error(f"Timeout la descărcarea articolului: {url}")
     except Exception as e:
         logger.error(f"Eroare la extragerea conținutului: {e}")
     return None
@@ -307,8 +321,14 @@ def generate_summary(content: str, url: str = None) -> tuple:
         raw_summary = message.content[0].text
         logger.info(f"Raw summary: {raw_summary}")
         
-        formatted = format_summary_html(raw_summary, url)
-        logger.info(f"Formatted summary: {formatted}")
+        try:
+            formatted = format_summary_html(raw_summary, url)
+            logger.info(f"Formatted summary: {formatted}")
+        except Exception as e:
+            logger.error(f"Eroare la formatare: {e}")
+            # Returnează textul brut dacă formatarea eșuează
+            formatted = raw_summary
+        
         return formatted, None
     except anthropic.AuthenticationError as e:
         logger.error(f"Eroare autentificare: {e}")
@@ -363,6 +383,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         url = article_urls[0]
         processing_msg = await update.message.reply_text("⏳ Procesez articolul...")
         
+        logger.info(f"Extrag articol de la: {url}")
         content = fetch_article_content(url)
         
         if not content:
@@ -372,7 +393,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
+        logger.info("Generez rezumatul...")
         summary, error = generate_summary(content, url)
+        logger.info(f"Rezumat generat: {summary[:100] if summary else 'None'}...")
     else:
         if len(cleaned_text) < 50:
             await update.message.reply_text(
@@ -381,14 +404,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         processing_msg = await update.message.reply_text("⏳ Procesez textul...")
+        logger.info("Generez rezumatul din text...")
         summary, error = generate_summary(cleaned_text, url=None)
+        logger.info(f"Rezumat generat: {summary[:100] if summary else 'None'}...")
     
     if not summary:
         error_msg = f"❌ Eroare la generarea rezumatului.\n\n🔍 Detalii: {error}" if error else "❌ Eroare la generarea rezumatului. Încearcă din nou."
         await processing_msg.edit_text(error_msg)
         return
     
-    await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+    try:
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Eroare la trimiterea mesajului: {e}")
+        # Încearcă fără HTML dacă formatarea e problematică
+        await processing_msg.edit_text(summary.replace("<b>", "").replace("</b>", "").replace("</a>", "").replace(f'<a href="{url}">', "") if url else summary)
 
 
 async def handle_forwarded(update: Update, context: ContextTypes.DEFAULT_TYPE):
