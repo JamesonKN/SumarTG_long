@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+# Verificare la startup
+if ANTHROPIC_API_KEY:
+    logger.info(f"ANTHROPIC_API_KEY setat (primele 10 char): {ANTHROPIC_API_KEY[:10]}...")
+else:
+    logger.error("ANTHROPIC_API_KEY NU este setat!")
+
 # Inițializare client Anthropic
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -258,13 +264,15 @@ def fetch_article_content(url: str) -> str | None:
     return None
 
 
-def generate_summary(content: str, url: str = None) -> str:
-    """Generează rezumat folosind Claude API."""
+def generate_summary(content: str, url: str = None) -> tuple:
+    """Generează rezumat folosind Claude API. Returnează (rezumat, eroare)."""
     try:
         if url:
             prompt = SUMMARY_PROMPT_WITH_URL.format(content=content[:15000])
         else:
             prompt = SUMMARY_PROMPT_NO_URL.format(content=content[:15000])
+        
+        logger.info(f"Trimit request la Claude API...")
         
         message = client.messages.create(
             model="claude-3-5-sonnet-20241022",
@@ -281,10 +289,19 @@ def generate_summary(content: str, url: str = None) -> str:
         
         formatted = format_summary_html(raw_summary, url)
         logger.info(f"Formatted summary: {formatted}")
-        return formatted
+        return formatted, None
+    except anthropic.AuthenticationError as e:
+        logger.error(f"Eroare autentificare: {e}")
+        return None, "Cheie API invalidă sau expirată"
+    except anthropic.RateLimitError as e:
+        logger.error(f"Rate limit: {e}")
+        return None, "Prea multe cereri. Așteaptă câteva secunde."
+    except anthropic.APIError as e:
+        logger.error(f"API Error: {e}")
+        return None, f"Eroare API: {str(e)[:100]}"
     except Exception as e:
-        logger.error(f"Eroare Claude API: {e}")
-        return None
+        logger.error(f"Eroare Claude API: {type(e).__name__}: {e}")
+        return None, f"{type(e).__name__}: {str(e)[:100]}"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -335,7 +352,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        summary = generate_summary(content, url)
+        summary, error = generate_summary(content, url)
     else:
         if len(cleaned_text) < 50:
             await update.message.reply_text(
@@ -344,12 +361,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         processing_msg = await update.message.reply_text("⏳ Procesez textul...")
-        summary = generate_summary(cleaned_text, url=None)
+        summary, error = generate_summary(cleaned_text, url=None)
     
     if not summary:
-        await processing_msg.edit_text(
-            "❌ Eroare la generarea rezumatului. Încearcă din nou."
-        )
+        error_msg = f"❌ Eroare la generarea rezumatului.\n\n🔍 Detalii: {error}" if error else "❌ Eroare la generarea rezumatului. Încearcă din nou."
+        await processing_msg.edit_text(error_msg)
         return
     
     await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
