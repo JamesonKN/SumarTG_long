@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+# Verificare la startup
+if ANTHROPIC_API_KEY:
+    logger.info(f"ANTHROPIC_API_KEY setat (primele 10 caractere): {ANTHROPIC_API_KEY[:10]}...")
+else:
+    logger.error("ANTHROPIC_API_KEY NU este setat!")
+
 # Inițializare client Anthropic
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -236,24 +242,33 @@ def extract_article_content(url: str) -> str:
     return None
 
 
-def get_summary(content: str, has_url: bool = False) -> str:
-    """Generează rezumat folosind Claude."""
+def get_summary(content: str, has_url: bool = False) -> tuple:
+    """Generează rezumat folosind Claude. Returnează (rezumat, eroare)."""
     try:
         prompt = SUMMARY_PROMPT_WITH_URL if has_url else SUMMARY_PROMPT_NO_URL
         prompt = prompt.format(content=content[:12000])
         
+        logger.info(f"Trimit request la Claude API, content length: {len(content)}")
+        
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=1500,
             messages=[
                 {"role": "user", "content": prompt}
             ]
         )
         
-        return message.content[0].text.strip()
+        logger.info("Răspuns primit de la Claude API")
+        return message.content[0].text.strip(), None
+    except anthropic.AuthenticationError as e:
+        logger.error(f"Eroare autentificare API: {e}")
+        return None, "Cheie API invalidă"
+    except anthropic.RateLimitError as e:
+        logger.error(f"Rate limit: {e}")
+        return None, "Prea multe cereri, încearcă mai târziu"
     except Exception as e:
-        logger.error(f"Eroare Claude API: {e}")
-        return None
+        logger.error(f"Eroare Claude API: {type(e).__name__}: {e}")
+        return None, str(e)[:100]
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -297,7 +312,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         content = extract_article_content(source_url)
     
     if content:
-        summary = get_summary(content, has_url=True)
+        summary, error = get_summary(content, has_url=True)
     else:
         cleaned_text = clean_telegram_footer(text)
         
@@ -311,12 +326,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        summary = get_summary(cleaned_text, has_url=bool(source_url))
+        summary, error = get_summary(cleaned_text, has_url=bool(source_url))
     
     if not summary:
-        await processing_msg.edit_text(
-            "❌ Nu am putut genera rezumatul. Încearcă din nou."
-        )
+        error_msg = f"❌ Nu am putut genera rezumatul.\n\n🔍 Eroare: {error}" if error else "❌ Nu am putut genera rezumatul. Încearcă din nou."
+        await processing_msg.edit_text(error_msg)
         return
     
     formatted_summary = format_summary_html(summary, source_url)
