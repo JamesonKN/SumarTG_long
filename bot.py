@@ -273,27 +273,32 @@ def remove_duplicate_emojis_in_batch(summaries: list) -> list:
     prev_emoji = None
     
     for idx, summary in enumerate(summaries):
-        # Extrage emoji-ul de la început (unul sau mai multe caractere emoji consecutive)
-        # Emoji-urile sunt caractere Unicode non-ASCII, non-HTML
+        # Skip-uri mesaje de eroare (care încep cu ❌)
+        if summary.startswith('❌'):
+            cleaned_summaries.append(summary)
+            continue
+        
+        # Extrage emoji-ul: orice caractere non-word, non-space, non-HTML la început
+        # Folosim Unicode pentru a prinde și emoji-uri compuse (steaguri, etc.)
         current_emoji = None
         
-        # Caută primul emoji (caracterele înainte de primul tag HTML sau text)
-        match = re.match(r'^([^\w\s<]+)\s*', summary)
+        # Match orice caractere non-ASCII la început până la primul caracter alfanumeric, spațiu sau <
+        match = re.match(r'^([\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]+)\s*', summary)
         if match:
-            current_emoji = match.group(1).strip()
+            current_emoji = match.group(1)
         
-        logger.info(f"Batch item {idx}: emoji='{current_emoji}', prev='{prev_emoji}'")
+        logger.info(f"Batch #{idx}: emoji='{current_emoji}' (len={len(current_emoji) if current_emoji else 0}), prev='{prev_emoji}'")
         
-        # Dacă emoji-ul e același cu precedentul, îl elimină
-        if current_emoji and current_emoji == prev_emoji:
-            logger.info(f"  → Eliminating duplicate emoji: {current_emoji}")
-            # Elimină emoji-ul și spațiile de după
-            cleaned_summary = re.sub(r'^[^\w\s<]+\s*', '', summary)
+        # Compară emoji-uri (normalizat)
+        if current_emoji and prev_emoji and current_emoji == prev_emoji:
+            logger.info(f"  ✂️ Eliminating duplicate: {current_emoji}")
+            # Elimină emoji-ul folosind același pattern
+            cleaned_summary = re.sub(r'^[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]+\s*', '', summary, count=1)
             cleaned_summaries.append(cleaned_summary)
         else:
             cleaned_summaries.append(summary)
         
-        # Actualizează prev_emoji doar dacă există emoji
+        # Actualizează prev_emoji doar pentru rezumate non-eroare cu emoji
         if current_emoji:
             prev_emoji = current_emoji
     
