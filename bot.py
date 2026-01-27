@@ -3,13 +3,6 @@ Telegram Bot pentru rezumate de articole
 Comenzi: /scurt (250-300), /mediu (500-600), /lung (850-950)
 Batch: max 7 linkuri → rezumate scurte
 Default fără comandă: lung
-
-# În terminal :
-   git pull
-   # Modifică ceva minor în bot.py (adaugă un comentariu)
-   git add bot.py
-   git commit -m "Test auto-deploy"
-   git push origin main
 """
 
 import os
@@ -307,15 +300,14 @@ async def process_single_article(url: str, length_type: str, fallback_text: str 
     
     # Dacă nu am putut extrage din URL, încearcă textul din mesaj
     if not content and fallback_text:
-        # Pentru fallback, păstrăm textul BRUT (fără curățare agresivă)
-        # Doar scoatem link-urile pentru a nu duplica
+        # Scoatem doar link-urile, păstrăm tot restul textului
         text_without_urls = re.sub(r'https?://[^\s]+', '', fallback_text).strip()
         
-        if len(text_without_urls) >= 30:
+        if text_without_urls:
             logger.info(f"Link inaccesibil, folosesc textul din mesaj: {len(text_without_urls)} caractere")
             content = text_without_urls
         else:
-            return f"❌ Link inaccesibil ({url[:30]}...) și textul postării e prea scurt ({len(text_without_urls)} caractere, minim 30). Adaugă mai mult text în postare."
+            return f"❌ Nu pot accesa {url[:40]}... și postarea nu conține text (doar link-ul). Adaugă o descriere la postare."
     elif not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
@@ -387,8 +379,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not article_urls:
         # Text fără URL - rezumat lung din text
         cleaned_text = clean_telegram_footer(text)
-        if len(cleaned_text) < 30:
-            await update.message.reply_text("❌ Textul e prea scurt (minim 30 caractere).")
+        if not cleaned_text or len(cleaned_text) < 10:
+            await update.message.reply_text("❌ Textul e prea scurt pentru rezumat.")
             return
         
         processing_msg = await update.message.reply_text("⏳ Procesez textul...")
