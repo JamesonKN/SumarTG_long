@@ -3,6 +3,21 @@ Telegram Bot pentru rezumate de articole
 Comenzi: /scurt (250-300), /mediu (500-600), /lung (850-950)
 Batch: max 7 linkuri → rezumate scurte
 Default fără comandă: lung
+
+# Adaugă un comentariu în bot.py
+git add bot.py
+git commit -m "Force rebuild - clear Railway cache"
+git push origin main
+```
+
+Apoi în Railway:
+- **Settings** → **"Clear Build Cache"**
+- **Deployments** → **"Redeploy"**
+
+### **Opțiunea 3: Verifică runtime.txt**
+Uneori Railway cache-uiește dependencies. Modifică `runtime.txt`:
+```
+python-3.12.1
 """
 
 import os
