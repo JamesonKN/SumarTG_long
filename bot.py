@@ -464,11 +464,12 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
             summary = await process_single_article(url, length_type)
             summaries.append(summary)
         
-        # Asigură că toate rezumatele au emoji (adaugă 📰 dacă lipsește)
-        summaries = ensure_emoji_in_summaries(summaries)
-        
-        # Elimină emoji-uri duplicate
+        # IMPORTANT: Ordinea corectă!
+        # 1. Mai întâi elimină emoji-uri DUPLICATE din cele care au emoji
         summaries = remove_duplicate_emojis_in_batch(summaries)
+        
+        # 2. APOI adaugă emoji-uri la cele care nu au (după ce duplicate-urile au fost eliminate)
+        summaries = ensure_emoji_in_summaries(summaries)
         
         final_text = "\n\n".join(summaries)
         
@@ -533,11 +534,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             summary = await process_single_article(url, "scurt")
             summaries.append(summary)
         
-        # Asigură că toate rezumatele au emoji (adaugă 📰 dacă lipsește)
-        summaries = ensure_emoji_in_summaries(summaries)
-        
-        # Elimină emoji-uri duplicate
+        # IMPORTANT: Ordinea corectă!
+        # 1. Mai întâi elimină emoji-uri DUPLICATE din cele care au emoji
         summaries = remove_duplicate_emojis_in_batch(summaries)
+        
+        # 2. APOI adaugă emoji-uri la cele care nu au (după ce duplicate-urile au fost eliminate)
+        summaries = ensure_emoji_in_summaries(summaries)
         
         final_text = "\n\n".join(summaries)
         
