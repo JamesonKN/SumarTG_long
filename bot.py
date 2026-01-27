@@ -367,8 +367,14 @@ def get_relevant_emoji(text: str) -> str:
 
 
 def ensure_emoji_in_summaries(summaries: list) -> list:
-    """Asigură că fiecare rezumat are emoji la început (adaugă emoji relevant dacă lipsește)."""
+    """Asigură că fiecare rezumat are emoji UNIC la început - fără duplicate în batch."""
     fixed_summaries = []
+    used_emojis = set()  # Track emoji-uri deja folosite
+    
+    # Lista completă de emoji-uri disponibile (în ordine de prioritate)
+    all_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇪🇺', '🇷🇺', '🇺🇸', '🇫🇷', '⚔️', '⚖️', 
+                  '💰', '💻', '🏥', '⚽', '🌍', '📚', '🚗', '⚡', '📰', '🚀', '🇪🇸',
+                  '🇮🇹', '🇩🇪', '🇬🇧', '🇨🇳', '🇯🇵', '🔥', '✨', '📊', '🎯', '⚠️']
     
     for idx, summary in enumerate(summaries):
         # Skip mesaje de eroare
@@ -376,181 +382,55 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
             fixed_summaries.append(summary)
             continue
         
-        # Simplu: verifică dacă începe cu orice emoji common
-        # Lista de emoji-uri pe care botul le folosește
-        common_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇪🇺', '🇷🇺', '🇺🇸', '🇫🇷', '⚔️', '⚖️', 
-                         '💰', '💻', '🏥', '⚽', '🌍', '📚', '🚗', '⚡', '📰', '🚀']
+        # Verifică dacă are deja emoji
+        current_emoji = None
+        for emoji in all_emojis:
+            if summary.startswith(emoji):
+                current_emoji = emoji
+                break
         
-        has_emoji = any(summary.startswith(emoji) for emoji in common_emojis)
-        
-        # Log pentru debugging
-        logger.info(f"Summary #{idx} has_emoji={has_emoji}: {summary[:60]}")
-        
-        # Dacă nu are emoji, determină unul relevant și adaugă-l
-        if not has_emoji:
-            relevant_emoji = get_relevant_emoji(summary)
-            logger.info(f"  → Adding {relevant_emoji}")
-            fixed_summaries.append(f"{relevant_emoji} {summary}")
+        if current_emoji:
+            # Are emoji - verifică dacă e duplicat
+            if current_emoji in used_emojis:
+                # DUPLICAT! Înlocuiește cu alt emoji relevant care nu a fost folosit
+                logger.info(f"Summary #{idx}: duplicate emoji {current_emoji}, replacing...")
+                
+                # Găsește emoji relevant care NU a fost folosit
+                relevant_emoji = get_relevant_emoji(summary)
+                
+                # Dacă relevant_emoji e deja folosit, alege orice altul disponibil
+                if relevant_emoji in used_emojis:
+                    for alt_emoji in all_emojis:
+                        if alt_emoji not in used_emojis:
+                            relevant_emoji = alt_emoji
+                            break
+                
+                # Înlocuiește emoji-ul vechi cu cel nou
+                summary_without_emoji = summary[len(current_emoji):].lstrip()
+                fixed_summaries.append(f"{relevant_emoji} {summary_without_emoji}")
+                used_emojis.add(relevant_emoji)
+                logger.info(f"  → Replaced {current_emoji} with {relevant_emoji}")
+            else:
+                # Emoji unic, păstrează-l
+                fixed_summaries.append(summary)
+                used_emojis.add(current_emoji)
+                logger.info(f"Summary #{idx}: keeping unique emoji {current_emoji}")
         else:
-            fixed_summaries.append(summary)
+            # Nu are emoji - adaugă unul care nu a fost folosit
+            relevant_emoji = get_relevant_emoji(summary)
+            
+            # Dacă relevant_emoji e deja folosit, alege altul
+            if relevant_emoji in used_emojis:
+                for alt_emoji in all_emojis:
+                    if alt_emoji not in used_emojis:
+                        relevant_emoji = alt_emoji
+                        break
+            
+            logger.info(f"Summary #{idx}: adding unique emoji {relevant_emoji}")
+            fixed_summaries.append(f"{relevant_emoji} {summary}")
+            used_emojis.add(relevant_emoji)
     
     return fixed_summaries
-
-def remove_duplicate_emojis_in_batch(summaries: list) -> list:
-    """Elimină TOATE emoji-urile duplicate dintr-o listă de rezumate (păstrează doar prima apariție)."""
-    if not summaries or len(summaries) <= 1:
-        return summaries
-    
-    cleaned_summaries = []
-    seen_emojis = set()  # Track TOATE emoji-urile văzute
-    
-    for idx, summary in enumerate(summaries):
-        # Skip mesaje de eroare (care încep cu ❌)
-        if summary.startswith('❌'):
-            cleaned_summaries.append(summary)
-            continue
-        
-        # Extrage emoji-ul: orice caractere non-word, non-space, non-HTML la început
-        current_emoji = None
-        
-        # Match orice caractere non-ASCII la început până la primul caracter alfanumeric, spațiu sau <
-        match = re.match(r'^([\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]+)\s*', summary)
-        if match:
-            current_emoji = match.group(1)
-        
-        logger.info(f"Batch #{idx}: emoji='{current_emoji}', seen={seen_emojis}")
-        
-        # Verifică dacă emoji-ul a mai apărut ORIUNDE în batch (nu doar consecutiv)
-        if current_emoji and current_emoji in seen_emojis:
-            logger.info(f"  ✂️ Eliminating duplicate (seen before): {current_emoji}")
-            # Elimină emoji-ul
-            cleaned_summary = re.sub(r'^[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]+\s*', '', summary, count=1)
-            cleaned_summaries.append(cleaned_summary)
-        else:
-            cleaned_summaries.append(summary)
-        
-        # Adaugă emoji-ul în set-ul de "văzute"
-        if current_emoji:
-            seen_emojis.add(current_emoji)
-    
-    return cleaned_summaries
-
-
-async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TYPE, length_type: str):
-    """Handler comun pentru comenzile /scurt, /mediu, /lung."""
-    text = update.message.text or ""
-    
-    # Extrage linkurile din mesaj (după comandă)
-    urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', text)
-    article_urls = filter_article_urls(urls)
-    
-    if not article_urls:
-        await update.message.reply_text(f"❌ Folosește: /{length_type} https://link-articol.com")
-        return
-    
-    processing_msg = await update.message.reply_text("⏳ Procesez...")
-    
-    # Un singur link
-    if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], length_type)
-        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
-    else:
-        # Batch - max 7, folosește tipul specificat
-        urls_to_process = article_urls[:MAX_BATCH_LINKS]
-        summaries = []
-        
-        for i, url in enumerate(urls_to_process):
-            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
-            summary = await process_single_article(url, length_type)
-            summaries.append(summary)
-        
-        # IMPORTANT: Ordinea corectă!
-        # 1. Mai întâi elimină emoji-uri DUPLICATE din cele care au emoji
-        summaries = remove_duplicate_emojis_in_batch(summaries)
-        
-        # 2. APOI adaugă emoji-uri la cele care nu au (după ce duplicate-urile au fost eliminate)
-        summaries = ensure_emoji_in_summaries(summaries)
-        
-        final_text = "\n\n".join(summaries)
-        
-        # Telegram are limită de 4096 caractere
-        if len(final_text) > 4000:
-            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
-        
-        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
-
-
-async def scurt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_length_command(update, context, "scurt")
-
-async def mediu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_length_command(update, context, "mediu")
-
-async def lung_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_length_command(update, context, "lung")
-
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler pentru mesaje fără comandă."""
-    text = update.message.text or update.message.caption or ""
-    
-    if not text.strip():
-        await update.message.reply_text("❌ Mesajul e gol.")
-        return
-    
-    all_urls = extract_urls_from_entities(update.message)
-    article_urls = filter_article_urls(all_urls)
-    
-    if not article_urls:
-        # Text fără URL - rezumat lung din text
-        cleaned_text = clean_telegram_footer(text)
-        if len(cleaned_text) < 50:
-            await update.message.reply_text("❌ Textul e prea scurt.")
-            return
-        
-        processing_msg = await update.message.reply_text("⏳ Procesez textul...")
-        summary, error = generate_summary(cleaned_text, url=None, length_type="lung")
-        
-        if not summary:
-            await processing_msg.edit_text(f"❌ Eroare: {error}")
-            return
-        
-        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
-        return
-    
-    processing_msg = await update.message.reply_text("⏳ Procesez...")
-    
-    # Un singur link - rezumat LUNG (default)
-    if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], "lung")
-        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
-    else:
-        # Batch - max 7, rezumate SCURTE
-        urls_to_process = article_urls[:MAX_BATCH_LINKS]
-        summaries = []
-        
-        for i, url in enumerate(urls_to_process):
-            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
-            summary = await process_single_article(url, "scurt")
-            summaries.append(summary)
-        
-        # IMPORTANT: Ordinea corectă!
-        # 1. Mai întâi elimină emoji-uri DUPLICATE din cele care au emoji
-        summaries = remove_duplicate_emojis_in_batch(summaries)
-        
-        # 2. APOI adaugă emoji-uri la cele care nu au (după ce duplicate-urile au fost eliminate)
-        summaries = ensure_emoji_in_summaries(summaries)
-        
-        final_text = "\n\n".join(summaries)
-        
-        if len(final_text) > 4000:
-            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
-        
-        if len(article_urls) > MAX_BATCH_LINKS:
-            final_text += f"\n\n⚠️ Am procesat doar primele {MAX_BATCH_LINKS} linkuri."
-        
-        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
-
 
 def main():
     """Pornește botul."""
