@@ -8,12 +8,14 @@ Default fără comandă: lung
 import os
 import re
 import logging
+import time
 from urllib.parse import urlparse
 from telegram import Update, MessageEntity
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 from telegram.constants import ParseMode
 import anthropic
 import trafilatura
+import httpx
 
 # Configurare logging
 logging.basicConfig(
@@ -199,14 +201,55 @@ def format_summary_html(summary: str, url: str = None) -> str:
     return f"{emoji_part} {formatted_text}" if emoji_part else formatted_text
 
 
-def fetch_article_content(url: str) -> str | None:
-    """Descarcă și extrage conținutul unui articol."""
-    try:
-        downloaded = trafilatura.fetch_url(url)
-        if downloaded:
-            return trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
-    except Exception as e:
-        logger.error(f"Eroare extragere: {e}")
+def fetch_article_content(url: str, max_retries: int = 2) -> str | None:
+    """Descarcă și extrage conținutul unui articol cu retry logic și custom headers."""
+    
+    # Headers care simulează un browser real
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Încercare {attempt}/{max_retries} pentru {url[:50]}...")
+            
+            # Folosim httpx pentru mai mult control
+            with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                
+                # Extragem conținutul cu trafilatura
+                content = trafilatura.extract(
+                    response.text,
+                    include_comments=False,
+                    include_tables=False,
+                    no_fallback=False
+                )
+                
+                if content:
+                    logger.info(f"✓ Extras cu succes: {len(content)} caractere")
+                    return content
+                else:
+                    logger.warning(f"Trafilatura nu a extras conținut la încercarea {attempt}")
+                    
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"HTTP Error {e.response.status_code} la încercarea {attempt}")
+        except httpx.TimeoutException:
+            logger.warning(f"Timeout la încercarea {attempt}")
+        except Exception as e:
+            logger.warning(f"Eroare la încercarea {attempt}: {type(e).__name__}: {str(e)[:100]}")
+        
+        # Pauză de 2 secunde între încercări (nu la ultima)
+        if attempt < max_retries:
+            logger.info(f"Aștept 2s înainte de reîncercare...")
+            time.sleep(2)
+    
+    logger.error(f"✗ Eșuat după {max_retries} încercări: {url[:50]}")
     return None
 
 
