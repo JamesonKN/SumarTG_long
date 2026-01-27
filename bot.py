@@ -307,6 +307,18 @@ def get_relevant_emoji(text: str) -> list:
     if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis', 'român']):
         relevant_emojis.append('🇷🇴')
     
+    # Ucraina
+    if any(word in text_lower for word in ['ucraina', 'kiev', 'ucrainean', 'zelensky']):
+        relevant_emojis.append('🇺🇦')
+    
+    # Polonia
+    if any(word in text_lower for word in ['polonia', 'varșovia', 'polonez', 'warszawa']):
+        relevant_emojis.append('🇵🇱')
+    
+    # Turcia
+    if any(word in text_lower for word in ['turcia', 'ankara', 'istanbul', 'turc', 'erdogan']):
+        relevant_emojis.append('🇹🇷')
+    
     # UE
     if any(word in text_lower for word in ['uniunea europeană', 'uniunea europeana', 'bruxelles', 'comisia europeană', 'ue ', 'european', 'ambasador ue']):
         relevant_emojis.append('🇪🇺')
@@ -318,6 +330,10 @@ def get_relevant_emoji(text: str) -> list:
     # SUA / America
     if any(word in text_lower for word in ['sua', 'statele unite', 'washington', 'america', 'trump', 'biden', 'american']):
         relevant_emojis.append('🇺🇸')
+    
+    # Canada
+    if any(word in text_lower for word in ['canada', 'canadian', 'ottawa', 'trudeau']):
+        relevant_emojis.append('🇨🇦')
     
     # Franța
     if any(word in text_lower for word in ['franţa', 'franta', 'paris', 'macron', 'francez']):
@@ -339,21 +355,57 @@ def get_relevant_emoji(text: str) -> list:
     if any(word in text_lower for word in ['marea britanie', 'anglia', 'londra', 'britanic']):
         relevant_emojis.append('🇬🇧')
     
+    # Australia
+    if any(word in text_lower for word in ['australia', 'australian', 'sydney']):
+        relevant_emojis.append('🇦🇺')
+    
+    # India
+    if any(word in text_lower for word in ['india', 'indian', 'delhi', 'mumbai']):
+        relevant_emojis.append('🇮🇳')
+    
+    # Brazilia
+    if any(word in text_lower for word in ['brazilia', 'brazilian', 'brasilia']):
+        relevant_emojis.append('🇧🇷')
+    
+    # China
+    if any(word in text_lower for word in ['china', 'chinei', 'beijing', 'chinezesc']):
+        relevant_emojis.append('🇨🇳')
+    
+    # Japonia
+    if any(word in text_lower for word in ['japonia', 'japonez', 'tokyo']):
+        relevant_emojis.append('🇯🇵')
+    
     # Război / Conflict / Armată
     if any(word in text_lower for word in ['război', 'razboi', 'conflict', 'militar', 'armată', 'armata', 'atac', 'arme', 'soldaţ', 'soldat']):
         relevant_emojis.append('⚔️')
+    
+    # Securitate / Apărare
+    if any(word in text_lower for word in ['securitate', 'apărare', 'aparare', 'protecţie', 'protectie', 'secret', 'spionaj', 'informații', 'informatii clasificate']):
+        relevant_emojis.append('🛡️')
     
     # Justiție / Lege
     if any(word in text_lower for word in ['judecător', 'judecator', 'tribunal', 'condamnat', 'sentinţă', 'sentinta', 'proces', 'procuror', 'avocat', 'instanţă', 'instanta', 'penal', 'juridic']):
         relevant_emojis.append('⚖️')
     
-    # Economie / Bani / Business
+    # Economie / Bani / Business / Bancă
     if any(word in text_lower for word in ['economie', 'bancă', 'banca', 'bani', 'preţ', 'pret', 'dolar', 'euro', 'inflație', 'inflatie', 'salariu', 'buget', 'fiscal', 'financiar', 'investiţie']):
         relevant_emojis.append('💰')
+    
+    # Bancă specific
+    if any(word in text_lower for word in ['bancă', 'banca', 'bnm', 'banca naţională', 'banca nationala', 'credit', 'împrumut', 'imprumut', 'depozit']):
+        relevant_emojis.append('🏦')
     
     # Tehnologie / Digital / Crypto
     if any(word in text_lower for word in ['tehnologie', 'tehnologic', 'digital', 'internet', 'computer', 'software', 'ai ', 'inteligență artificială', 'crypto', 'blockchain', 'bitcoin']):
         relevant_emojis.append('💻')
+    
+    # Internet / Online / Web
+    if any(word in text_lower for word in ['internet', 'online', 'web', 'site', 'portal', 'platform', 'reţea', 'retea socială']):
+        relevant_emojis.append('🌐')
+    
+    # Mobile / Telefon / App
+    if any(word in text_lower for word in ['telefon', 'mobil', 'smartphone', 'aplicaţie', 'aplicatie', 'app']):
+        relevant_emojis.append('📱')
     
     # Sănătate / Medical
     if any(word in text_lower for word in ['sănătate', 'sanatate', 'medical', 'spital', 'doctor', 'pacient', 'boală', 'boala', 'virus', 'vaccin', 'tratament']):
@@ -367,17 +419,29 @@ def get_relevant_emoji(text: str) -> list:
     if any(word in text_lower for word in ['mediu', 'climă', 'clima', 'poluare', 'ecologic', 'natură', 'natura', 'pădure', 'padure', 'meteo', 'vreme']):
         relevant_emojis.append('🌍')
     
-    # Educație
+    # Educație / Universitate / Școală
     if any(word in text_lower for word in ['educaţie', 'educatie', 'şcoală', 'scoala', 'universitate', 'student', 'profesor', 'elev', 'grădiniță', 'gradinita']):
         relevant_emojis.append('📚')
+    
+    # Universitate specific
+    if any(word in text_lower for word in ['universitate', 'student', 'rector', 'facultate', 'academic']):
+        relevant_emojis.append('🎓')
     
     # Transport / Auto
     if any(word in text_lower for word in ['maşină', 'masina', 'auto', 'trafic', 'şofer', 'sofer', 'drum', 'accident', 'transport']):
         relevant_emojis.append('🚗')
     
+    # Aviație / Călătorii / Turism
+    if any(word in text_lower for word in ['avion', 'zbor', 'aeroport', 'călătorie', 'calatorie', 'turism', 'turist']):
+        relevant_emojis.append('✈️')
+    
     # Energie / Electric
     if any(word in text_lower for word in ['energie', 'electric', 'gaz', 'petrol', 'combustibil', 'centrală', 'centrala', 'curent']):
         relevant_emojis.append('⚡')
+    
+    # Industrie / Fabrică / Producție
+    if any(word in text_lower for word in ['industrie', 'fabrică', 'fabrica', 'producţie', 'productie', 'industrial', 'uzină', 'uzina']):
+        relevant_emojis.append('🏭')
     
     # Dacă nu s-a găsit nimic specific, returnează emoji-uri generale
     if not relevant_emojis:
@@ -392,9 +456,10 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
     used_emojis = set()  # Track emoji-uri deja folosite
     
     # Lista completă de emoji-uri disponibile ca fallback
-    all_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇪🇺', '🇷🇺', '🇺🇸', '🇫🇷', '⚔️', '⚖️', 
-                  '💰', '💻', '🏥', '⚽', '🌍', '📚', '🚗', '⚡', '📰', '🚀', '🇪🇸',
-                  '🇮🇹', '🇩🇪', '🇬🇧', '🇨🇳', '🇯🇵', '🔥', '✨', '📊', '🎯', '⚠️']
+    all_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇺🇦', '🇵🇱', '🇹🇷', '🇪🇺', '🇷🇺', '🇺🇸', '🇨🇦',
+                  '🇫🇷', '🇪🇸', '🇮🇹', '🇩🇪', '🇬🇧', '🇦🇺', '🇮🇳', '🇧🇷', '🇨🇳', '🇯🇵',
+                  '⚔️', '🛡️', '⚖️', '💰', '🏦', '💻', '🌐', '📱', '🏥', '⚽', '🌍',
+                  '📚', '🎓', '🚗', '✈️', '⚡', '🏭', '📰', '🚀', '🔥', '✨', '📊', '🎯', '⚠️']
     
     for idx, summary in enumerate(summaries):
         # Skip mesaje de eroare
