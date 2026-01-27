@@ -3,21 +3,6 @@ Telegram Bot pentru rezumate de articole
 Comenzi: /scurt (250-300), /mediu (500-600), /lung (850-950)
 Batch: max 7 linkuri → rezumate scurte
 Default fără comandă: lung
-
-# Adaugă un comentariu în bot.py
-git add bot.py
-git commit -m "Force rebuild - clear Railway cache"
-git push origin main
-```
-
-Apoi în Railway:
-- **Settings** → **"Clear Build Cache"**
-- **Deployments** → **"Redeploy"**
-
-### **Opțiunea 3: Verifică runtime.txt**
-Uneori Railway cache-uiește dependencies. Modifică `runtime.txt`:
-```
-python-3.12.1
 """
 
 import os
@@ -316,11 +301,11 @@ async def process_single_article(url: str, length_type: str, fallback_text: str 
     # Dacă nu am putut extrage din URL, încearcă textul din mesaj
     if not content and fallback_text:
         cleaned_text = clean_telegram_footer(fallback_text)
-        if len(cleaned_text) >= 50:
+        if len(cleaned_text) >= 30:
             logger.info(f"Link inaccesibil, folosesc textul din mesaj: {url[:50]}")
             content = cleaned_text
         else:
-            return f"❌ Link inaccesibil și textul e prea scurt: {url[:50]}..."
+            return f"❌ Link inaccesibil ({url[:30]}...) și textul postării e prea scurt ({len(cleaned_text)} caractere, minim 30)."
     elif not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
@@ -392,8 +377,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not article_urls:
         # Text fără URL - rezumat lung din text
         cleaned_text = clean_telegram_footer(text)
-        if len(cleaned_text) < 50:
-            await update.message.reply_text("❌ Textul e prea scurt.")
+        if len(cleaned_text) < 30:
+            await update.message.reply_text("❌ Textul e prea scurt (minim 30 caractere).")
             return
         
         processing_msg = await update.message.reply_text("⏳ Procesez textul...")
