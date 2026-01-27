@@ -300,12 +300,15 @@ async def process_single_article(url: str, length_type: str, fallback_text: str 
     
     # Dacă nu am putut extrage din URL, încearcă textul din mesaj
     if not content and fallback_text:
-        cleaned_text = clean_telegram_footer(fallback_text)
-        if len(cleaned_text) >= 30:
-            logger.info(f"Link inaccesibil, folosesc textul din mesaj: {url[:50]}")
-            content = cleaned_text
+        # Pentru fallback, păstrăm textul BRUT (fără curățare agresivă)
+        # Doar scoatem link-urile pentru a nu duplica
+        text_without_urls = re.sub(r'https?://[^\s]+', '', fallback_text).strip()
+        
+        if len(text_without_urls) >= 30:
+            logger.info(f"Link inaccesibil, folosesc textul din mesaj: {len(text_without_urls)} caractere")
+            content = text_without_urls
         else:
-            return f"❌ Link inaccesibil ({url[:30]}...) și textul postării e prea scurt ({len(cleaned_text)} caractere, minim 30)."
+            return f"❌ Link inaccesibil ({url[:30]}...) și textul postării e prea scurt ({len(text_without_urls)} caractere, minim 30). Adaugă mai mult text în postare."
     elif not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
