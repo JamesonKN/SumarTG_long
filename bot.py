@@ -432,6 +432,115 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
     
     return fixed_summaries
 
+async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TYPE, length_type: str):
+    """Handler comun pentru comenzile /scurt, /mediu, /lung."""
+    text = update.message.text or ""
+    
+    # Extrage linkurile din mesaj (după comandă)
+    urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', text)
+    article_urls = filter_article_urls(urls)
+    
+    if not article_urls:
+        await update.message.reply_text(f"❌ Folosește: /{length_type} https://link-articol.com")
+        return
+    
+    processing_msg = await update.message.reply_text("⏳ Procesez...")
+    
+    # Un singur link
+    if len(article_urls) == 1:
+        summary = await process_single_article(article_urls[0], length_type)
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+    else:
+        # Batch - max 7, folosește tipul specificat
+        urls_to_process = article_urls[:MAX_BATCH_LINKS]
+        summaries = []
+        
+        for i, url in enumerate(urls_to_process):
+            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
+            summary = await process_single_article(url, length_type)
+            summaries.append(summary)
+        
+        # Asigură că toate rezumatele au emoji-uri UNICE (fără duplicate)
+        summaries = ensure_emoji_in_summaries(summaries)
+        
+        final_text = "\n\n".join(summaries)
+        
+        # Telegram are limită de 4096 caractere
+        if len(final_text) > 4000:
+            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
+        
+        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
+
+
+async def scurt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "scurt")
+
+async def mediu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "mediu")
+
+async def lung_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_length_command(update, context, "lung")
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler pentru mesaje fără comandă."""
+    text = update.message.text or update.message.caption or ""
+    
+    if not text.strip():
+        await update.message.reply_text("❌ Mesajul e gol.")
+        return
+    
+    all_urls = extract_urls_from_entities(update.message)
+    article_urls = filter_article_urls(all_urls)
+    
+    if not article_urls:
+        # Text fără URL - rezumat lung din text
+        cleaned_text = clean_telegram_footer(text)
+        if len(cleaned_text) < 50:
+            await update.message.reply_text("❌ Textul e prea scurt.")
+            return
+        
+        processing_msg = await update.message.reply_text("⏳ Procesez textul...")
+        summary, error = generate_summary(cleaned_text, url=None, length_type="lung")
+        
+        if not summary:
+            await processing_msg.edit_text(f"❌ Eroare: {error}")
+            return
+        
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+        return
+    
+    processing_msg = await update.message.reply_text("⏳ Procesez...")
+    
+    # Un singur link - rezumat LUNG (default)
+    if len(article_urls) == 1:
+        summary = await process_single_article(article_urls[0], "lung")
+        await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
+    else:
+        # Batch - max 7, rezumate SCURTE
+        urls_to_process = article_urls[:MAX_BATCH_LINKS]
+        summaries = []
+        
+        for i, url in enumerate(urls_to_process):
+            await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
+            summary = await process_single_article(url, "scurt")
+            summaries.append(summary)
+        
+        # Asigură că toate rezumatele au emoji-uri UNICE (fără duplicate)
+        summaries = ensure_emoji_in_summaries(summaries)
+        
+        final_text = "\n\n".join(summaries)
+        
+        if len(final_text) > 4000:
+            final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
+        
+        if len(article_urls) > MAX_BATCH_LINKS:
+            final_text += f"\n\n⚠️ Am procesat doar primele {MAX_BATCH_LINKS} linkuri."
+        
+        await processing_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
+
+
+
 def main():
     """Pornește botul."""
     if not TELEGRAM_TOKEN:
