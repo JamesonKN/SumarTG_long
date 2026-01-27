@@ -272,25 +272,29 @@ def remove_duplicate_emojis_in_batch(summaries: list) -> list:
     cleaned_summaries = []
     prev_emoji = None
     
-    for summary in summaries:
-        # Extrage emoji-ul din rezumat (primul caracter non-alfanumeric)
+    for idx, summary in enumerate(summaries):
+        # Extrage emoji-ul de la început (unul sau mai multe caractere emoji consecutive)
+        # Emoji-urile sunt caractere Unicode non-ASCII, non-HTML
         current_emoji = None
-        if len(summary) > 0 and not summary[0].isalnum() and summary[0] not in '([{❌':
-            i = 0
-            while i < len(summary) and not summary[i].isalnum():
-                i += 1
-            current_emoji = summary[:i].strip()
+        
+        # Caută primul emoji (caracterele înainte de primul tag HTML sau text)
+        match = re.match(r'^([^\w\s<]+)\s*', summary)
+        if match:
+            current_emoji = match.group(1).strip()
+        
+        logger.info(f"Batch item {idx}: emoji='{current_emoji}', prev='{prev_emoji}'")
         
         # Dacă emoji-ul e același cu precedentul, îl elimină
         if current_emoji and current_emoji == prev_emoji:
-            # Elimină emoji-ul (primul segment non-alfanumeric)
-            i = 0
-            while i < len(summary) and not summary[i].isalnum():
-                i += 1
-            cleaned_summary = summary[i:].lstrip()
+            logger.info(f"  → Eliminating duplicate emoji: {current_emoji}")
+            # Elimină emoji-ul și spațiile de după
+            cleaned_summary = re.sub(r'^[^\w\s<]+\s*', '', summary)
             cleaned_summaries.append(cleaned_summary)
         else:
             cleaned_summaries.append(summary)
+        
+        # Actualizează prev_emoji doar dacă există emoji
+        if current_emoji:
             prev_emoji = current_emoji
     
     return cleaned_summaries
