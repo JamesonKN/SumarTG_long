@@ -8,12 +8,15 @@ Default fără comandă: lung
 import os
 import re
 import logging
+import time
 from urllib.parse import urlparse
 from telegram import Update, MessageEntity
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 from telegram.constants import ParseMode
 import anthropic
 import trafilatura
+import httpx
+from bs4 import BeautifulSoup
 
 # Configurare logging
 logging.basicConfig(
@@ -200,13 +203,86 @@ def format_summary_html(summary: str, url: str = None) -> str:
 
 
 def fetch_article_content(url: str) -> str | None:
-    """Descarcă și extrage conținutul unui articol."""
-    try:
-        downloaded = trafilatura.fetch_url(url)
-        if downloaded:
-            return trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
-    except Exception as e:
-        logger.error(f"Eroare extragere: {e}")
+    """Descarcă și extrage conținutul unui articol cu metode multiple."""
+    
+    # Headers care simulează un browser real
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ro-RO,ro;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+    }
+    
+    html_content = None
+    
+    # Încercare 1 + 2: Trafilatura cu headers bune (cu un retry)
+    for attempt in [1, 2]:
+        try:
+            logger.info(f"Trafilatura încercare {attempt}/2 pentru {url[:50]}...")
+            
+            with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                html_content = response.text
+                
+                # Încearcă trafilatura
+                content = trafilatura.extract(
+                    html_content,
+                    include_comments=False,
+                    include_tables=False,
+                    no_fallback=False
+                )
+                
+                if content and len(content) > 100:
+                    logger.info(f"✓ Trafilatura: {len(content)} caractere")
+                    return content
+                else:
+                    logger.warning(f"Trafilatura nu a extras suficient conținut (încercare {attempt})")
+                    
+        except Exception as e:
+            logger.warning(f"Eroare trafilatura încercare {attempt}: {type(e).__name__}")
+        
+        # Pauză între încercări (nu la ultima)
+        if attempt == 1:
+            logger.info("Aștept 2s înainte de retry...")
+            time.sleep(2)
+    
+    # Încercare 3: BeautifulSoup fallback (pentru site-uri cu HTML neobișnuit)
+    if html_content:
+        try:
+            logger.info("Încerc BeautifulSoup fallback...")
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Elimină script, style, nav, footer, header
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form']):
+                tag.decompose()
+            
+            # Extrage text din <p>, <article>, <div class="content">
+            paragraphs = []
+            
+            # Încearcă mai întâi <article>
+            article = soup.find('article')
+            if article:
+                paragraphs = [p.get_text(strip=True) for p in article.find_all('p')]
+            
+            # Dacă nu găsește, încearcă toate <p>
+            if not paragraphs:
+                paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
+            
+            # Filtrează paragrafe prea scurte
+            paragraphs = [p for p in paragraphs if len(p) > 50]
+            
+            if paragraphs:
+                content = '\n\n'.join(paragraphs)
+                logger.info(f"✓ BeautifulSoup: {len(content)} caractere din {len(paragraphs)} paragrafe")
+                return content
+            else:
+                logger.warning("BeautifulSoup nu a găsit paragrafe substanțiale")
+                
+        except Exception as e:
+            logger.error(f"Eroare BeautifulSoup: {type(e).__name__}: {str(e)[:100]}")
+    
+    logger.error(f"✗ Toate metodele au eșuat pentru: {url[:50]}")
     return None
 
 
