@@ -206,26 +206,29 @@ def fetch_article_content(url: str) -> str | None:
         downloaded = trafilatura.fetch_url(url)
         if downloaded:
             content = trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
-            if content:
+            if content and len(content) > 100:
                 return content
         
-        # Metoda 2: Fallback pentru ipn.md - folosește Jina AI Reader
-        if 'ipn.md' in url.lower():
-            logger.info(f"Fallback Jina AI pentru ipn.md: {url[:50]}")
-            try:
-                import httpx
-                jina_url = f"https://r.jina.ai/{url}"
-                response = httpx.get(jina_url, timeout=15.0, follow_redirects=True)
-                if response.status_code == 200:
-                    content = response.text
-                    # Curăță markdown headers și formatare excesivă
-                    content = re.sub(r'^#+\s+', '', content, flags=re.MULTILINE)
-                    content = re.sub(r'\n{3,}', '\n\n', content)
-                    if len(content) > 200:
-                        logger.info(f"✓ Jina AI: {len(content)} caractere")
-                        return content
-            except Exception as e:
-                logger.warning(f"Jina AI eșuat: {e}")
+        # Metoda 2: Fallback Jina AI - pentru ORICE site care eșuează
+        logger.info(f"Trafilatura eșuat, încerc Jina AI pentru: {url[:60]}")
+        try:
+            import httpx
+            jina_url = f"https://r.jina.ai/{url}"
+            response = httpx.get(jina_url, timeout=20.0, follow_redirects=True)
+            if response.status_code == 200:
+                content = response.text
+                # Curăță markdown headers și formatare excesivă
+                content = re.sub(r'^#+\s+', '', content, flags=re.MULTILINE)
+                content = re.sub(r'\n{3,}', '\n\n', content)
+                if len(content) > 200:
+                    logger.info(f"✓ Jina AI SUCCESS: {len(content)} caractere")
+                    return content
+                else:
+                    logger.warning(f"Jina AI: conținut prea scurt ({len(content)} char)")
+            else:
+                logger.warning(f"Jina AI HTTP {response.status_code}")
+        except Exception as e:
+            logger.warning(f"Jina AI eșuat: {type(e).__name__}: {str(e)[:50]}")
         
     except Exception as e:
         logger.error(f"Eroare extragere: {e}")
