@@ -290,6 +290,110 @@ async def process_single_article(url: str, length_type: str) -> str:
     return summary
 
 
+def get_relevant_emoji(text: str) -> str:
+    """Determină emoji-ul relevant pe baza conținutului textului."""
+    text_lower = text.lower()
+    
+    # Politică / Guvern
+    if any(word in text_lower for word in ['parlament', 'guvern', 'ministru', 'deputat', 'legislativ', 'politic', 'alegeri', 'vot', 'lege', 'preşedinte', 'premier']):
+        return '🏛️'
+    
+    # Moldova
+    if any(word in text_lower for word in ['moldova', 'chișinău', 'chisinau', 'maia sandu', 'pas ']):
+        return '🇲🇩'
+    
+    # România
+    if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis']):
+        return '🇷🇴'
+    
+    # UE
+    if any(word in text_lower for word in ['uniunea europeană', 'uniunea europeana', 'bruxelles', 'comisia europeană', 'ue ']):
+        return '🇪🇺'
+    
+    # Rusia
+    if any(word in text_lower for word in ['rusia', 'kremlin', 'moscova', 'putin']):
+        return '🇷🇺'
+    
+    # SUA
+    if any(word in text_lower for word in ['sua', 'statele unite', 'washington', 'america', 'trump', 'biden']):
+        return '🇺🇸'
+    
+    # Franța
+    if any(word in text_lower for word in ['franţa', 'franta', 'paris', 'macron', 'francez']):
+        return '🇫🇷'
+    
+    # Război / Conflict / Armată
+    if any(word in text_lower for word in ['război', 'razboi', 'conflict', 'militar', 'armată', 'armata', 'atac', 'arme', 'soldaţ', 'soldat']):
+        return '⚔️'
+    
+    # Justiție / Lege
+    if any(word in text_lower for word in ['judecător', 'judecator', 'tribunal', 'condamnat', 'sentinţă', 'sentinta', 'proces', 'procuror', 'avocat', 'instanţă', 'instanta']):
+        return '⚖️'
+    
+    # Economie / Bani
+    if any(word in text_lower for word in ['economie', 'bancă', 'banca', 'bani', 'preţ', 'pret', 'dolar', 'euro', 'inflație', 'inflatie', 'salariu', 'buget', 'fiscal']):
+        return '💰'
+    
+    # Tehnologie / Digital
+    if any(word in text_lower for word in ['tehnologie', 'tehnologic', 'digital', 'internet', 'computer', 'software', 'ai ', 'inteligență artificială', 'crypto', 'blockchain']):
+        return '💻'
+    
+    # Sănătate / Medical
+    if any(word in text_lower for word in ['sănătate', 'sanatate', 'medical', 'spital', 'doctor', 'pacient', 'boală', 'boala', 'virus', 'vaccin', 'tratament']):
+        return '🏥'
+    
+    # Sport
+    if any(word in text_lower for word in ['fotbal', 'meci', 'echipă', 'echipa', 'campionat', 'jucător', 'jucator', 'sport', 'olimpic', 'antrenor']):
+        return '⚽'
+    
+    # Mediu / Natură
+    if any(word in text_lower for word in ['mediu', 'climă', 'clima', 'poluare', 'ecologic', 'natură', 'natura', 'pădure', 'padure']):
+        return '🌍'
+    
+    # Educație
+    if any(word in text_lower for word in ['educaţie', 'educatie', 'şcoală', 'scoala', 'universitate', 'student', 'profesor', 'elev']):
+        return '📚'
+    
+    # Transport / Auto
+    if any(word in text_lower for word in ['maşină', 'masina', 'auto', 'trafic', 'şofer', 'sofer', 'drum', 'accident']):
+        return '🚗'
+    
+    # Energie
+    if any(word in text_lower for word in ['energie', 'electric', 'gaz', 'petrol', 'combustibil', 'centrală', 'centrala']):
+        return '⚡'
+    
+    # Default - știri generale
+    return '📰'
+
+
+def ensure_emoji_in_summaries(summaries: list) -> list:
+    """Asigură că fiecare rezumat are emoji la început (adaugă emoji relevant dacă lipsește)."""
+    fixed_summaries = []
+    
+    for summary in summaries:
+        # Skip mesaje de eroare
+        if summary.startswith('❌'):
+            fixed_summaries.append(summary)
+            continue
+        
+        # Verifică dacă începe cu emoji
+        has_emoji = False
+        if len(summary) > 0:
+            # Verifică dacă primul caracter e emoji
+            match = re.match(r'^[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]', summary)
+            if match:
+                has_emoji = True
+        
+        # Dacă nu are emoji, determină unul relevant și adaugă-l
+        if not has_emoji:
+            relevant_emoji = get_relevant_emoji(summary)
+            logger.info(f"Adding relevant emoji {relevant_emoji} to: {summary[:50]}...")
+            fixed_summaries.append(f"{relevant_emoji} {summary}")
+        else:
+            fixed_summaries.append(summary)
+    
+    return fixed_summaries
+
 def remove_duplicate_emojis_in_batch(summaries: list) -> list:
     """Elimină TOATE emoji-urile duplicate dintr-o listă de rezumate (păstrează doar prima apariție)."""
     if not summaries or len(summaries) <= 1:
@@ -358,7 +462,10 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
             summary = await process_single_article(url, length_type)
             summaries.append(summary)
         
-        # Elimină emoji-uri duplicate consecutive
+        # Asigură că toate rezumatele au emoji (adaugă 📰 dacă lipsește)
+        summaries = ensure_emoji_in_summaries(summaries)
+        
+        # Elimină emoji-uri duplicate
         summaries = remove_duplicate_emojis_in_batch(summaries)
         
         final_text = "\n\n".join(summaries)
@@ -424,7 +531,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             summary = await process_single_article(url, "scurt")
             summaries.append(summary)
         
-        # Elimină emoji-uri duplicate consecutive
+        # Asigură că toate rezumatele au emoji (adaugă 📰 dacă lipsește)
+        summaries = ensure_emoji_in_summaries(summaries)
+        
+        # Elimină emoji-uri duplicate
         summaries = remove_duplicate_emojis_in_batch(summaries)
         
         final_text = "\n\n".join(summaries)
