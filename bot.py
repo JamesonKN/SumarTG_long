@@ -254,7 +254,7 @@ def fetch_article_content(url: str) -> str | None:
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # Elimină script, style, nav, footer, header
-            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form', 'iframe']):
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form', 'iframe', 'noscript']):
                 tag.decompose()
             
             # Extrage text din multiple surse (în ordine de preferință)
@@ -268,7 +268,7 @@ def fetch_article_content(url: str) -> str | None:
             # 2. Încearcă div-uri cu clase comune de conținut
             if not paragraphs:
                 content_divs = soup.find_all('div', class_=lambda x: x and any(
-                    word in str(x).lower() for word in ['content', 'article', 'post', 'entry', 'text', 'body']
+                    word in str(x).lower() for word in ['content', 'article', 'post', 'entry', 'text', 'body', 'story', 'main']
                 ))
                 for div in content_divs:
                     paragraphs.extend([p.get_text(strip=True) for p in div.find_all(['p', 'div'])])
@@ -277,14 +277,37 @@ def fetch_article_content(url: str) -> str | None:
             if not paragraphs:
                 paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
             
-            # 4. Ultimă șansă: orice div cu text substanțial
+            # 4. Încearcă orice div cu text substanțial
             if not paragraphs:
                 all_divs = soup.find_all('div')
                 for div in all_divs:
                     text = div.get_text(strip=True)
-                    # Verifică dacă div-ul are text substanțial și nu prea multe link-uri
                     if len(text) > 100 and text.count('http') < 3:
                         paragraphs.append(text)
+            
+            # 5. NUCLEAR OPTION: Extrage tot textul vizibil din body
+            if not paragraphs:
+                logger.info("Nuclear option: extrag tot textul din body...")
+                body = soup.find('body')
+                if body:
+                    # Ia tot textul, split pe linii
+                    all_text = body.get_text(separator='\n', strip=True)
+                    lines = [line.strip() for line in all_text.split('\n') if line.strip()]
+                    
+                    # Filtrează linii de noise (navigare, copyright, etc.)
+                    clean_lines = []
+                    for line in lines:
+                        # Skip linii prea scurte sau care par menu/navigare
+                        if len(line) < 20:
+                            continue
+                        if any(word in line.lower() for word in ['cookie', 'copyright', '©', 'toate drepturile', 'menu', 'search']):
+                            continue
+                        # Skip linii care sunt doar link-uri
+                        if line.count('http') > 2:
+                            continue
+                        clean_lines.append(line)
+                    
+                    paragraphs = clean_lines
             
             # Filtrează paragrafe prea scurte (redus la 30 caractere)
             paragraphs = [p for p in paragraphs if len(p) > 30]
@@ -292,12 +315,12 @@ def fetch_article_content(url: str) -> str | None:
             # Ia primele paragrafe (max 50 pentru a evita spam)
             paragraphs = paragraphs[:50]
             
-            if paragraphs:
+            if paragraphs and len('\n\n'.join(paragraphs)) > 200:
                 content = '\n\n'.join(paragraphs)
                 logger.info(f"✓ BeautifulSoup: {len(content)} caractere din {len(paragraphs)} fragmente")
                 return content
             else:
-                logger.warning("BeautifulSoup nu a găsit conținut substanțial")
+                logger.warning(f"BeautifulSoup nu a găsit suficient conținut (doar {len(paragraphs)} fragmente)")
                 
         except Exception as e:
             logger.error(f"Eroare BeautifulSoup: {type(e).__name__}: {str(e)[:100]}")
