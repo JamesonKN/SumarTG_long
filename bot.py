@@ -376,13 +376,15 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
             fixed_summaries.append(summary)
             continue
         
-        # Verifică dacă începe cu emoji
+        # Verifică dacă conține emoji ORIUNDE la început (ignoră HTML tags)
+        # Elimină temporar HTML tags pentru a verifica emoji
+        text_without_html = re.sub(r'<[^>]+>', '', summary[:50])  # Check primele 50 char fără HTML
+        
         has_emoji = False
-        if len(summary) > 0:
-            # Verifică dacă primul caracter e emoji
-            match = re.match(r'^[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]', summary)
-            if match:
-                has_emoji = True
+        # Verifică dacă PRIMELE caractere non-whitespace conțin emoji
+        match = re.search(r'^[\s]*[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]', text_without_html)
+        if match:
+            has_emoji = True
         
         # Dacă nu are emoji, determină unul relevant și adaugă-l
         if not has_emoji:
