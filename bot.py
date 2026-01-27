@@ -251,10 +251,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome, parse_mode=ParseMode.HTML)
 
 
-async def process_single_article(url: str, length_type: str) -> str:
+async def process_single_article(url: str, length_type: str, fallback_text: str = None) -> str:
     """Procesează un singur articol și returnează rezumatul."""
     content = fetch_article_content(url)
-    if not content:
+    
+    # Dacă nu am putut extrage din URL, încearcă textul din mesaj
+    if not content and fallback_text:
+        cleaned_text = clean_telegram_footer(fallback_text)
+        if len(cleaned_text) >= 50:
+            logger.info(f"Link inaccesibil, folosesc textul din mesaj: {url[:50]}")
+            content = cleaned_text
+        else:
+            return f"❌ Link inaccesibil și textul e prea scurt: {url[:50]}..."
+    elif not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
     summary, error = generate_summary(content, url, length_type)
@@ -280,7 +289,7 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Un singur link
     if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], length_type)
+        summary = await process_single_article(article_urls[0], length_type, fallback_text=text)
         await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
     else:
         # Batch - max 7, folosește tipul specificat
@@ -289,7 +298,7 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
         
         for i, url in enumerate(urls_to_process):
             await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
-            summary = await process_single_article(url, length_type)
+            summary = await process_single_article(url, length_type, fallback_text=text)
             summaries.append(summary)
         
         final_text = "\n\n".join(summaries)
@@ -343,7 +352,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Un singur link - rezumat LUNG (default)
     if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], "lung")
+        summary = await process_single_article(article_urls[0], "lung", fallback_text=text)
         await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
     else:
         # Batch - max 7, rezumate SCURTE
@@ -352,7 +361,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for i, url in enumerate(urls_to_process):
             await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
-            summary = await process_single_article(url, "scurt")
+            summary = await process_single_article(url, "scurt", fallback_text=text)
             summaries.append(summary)
         
         final_text = "\n\n".join(summaries)
