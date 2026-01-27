@@ -264,6 +264,38 @@ async def process_single_article(url: str, length_type: str) -> str:
     return summary
 
 
+def remove_duplicate_emojis_in_batch(summaries: list) -> list:
+    """Elimină emoji-uri duplicate consecutive dintr-o listă de rezumate."""
+    if not summaries or len(summaries) <= 1:
+        return summaries
+    
+    cleaned_summaries = []
+    prev_emoji = None
+    
+    for summary in summaries:
+        # Extrage emoji-ul din rezumat (primul caracter non-alfanumeric)
+        current_emoji = None
+        if len(summary) > 0 and not summary[0].isalnum() and summary[0] not in '([{❌':
+            i = 0
+            while i < len(summary) and not summary[i].isalnum():
+                i += 1
+            current_emoji = summary[:i].strip()
+        
+        # Dacă emoji-ul e același cu precedentul, îl elimină
+        if current_emoji and current_emoji == prev_emoji:
+            # Elimină emoji-ul (primul segment non-alfanumeric)
+            i = 0
+            while i < len(summary) and not summary[i].isalnum():
+                i += 1
+            cleaned_summary = summary[i:].lstrip()
+            cleaned_summaries.append(cleaned_summary)
+        else:
+            cleaned_summaries.append(summary)
+            prev_emoji = current_emoji
+    
+    return cleaned_summaries
+
+
 async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TYPE, length_type: str):
     """Handler comun pentru comenzile /scurt, /mediu, /lung."""
     text = update.message.text or ""
@@ -291,6 +323,9 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
             await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
             summary = await process_single_article(url, length_type)
             summaries.append(summary)
+        
+        # Elimină emoji-uri duplicate consecutive
+        summaries = remove_duplicate_emojis_in_batch(summaries)
         
         final_text = "\n\n".join(summaries)
         
@@ -354,6 +389,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await processing_msg.edit_text(f"⏳ Procesez {i+1}/{len(urls_to_process)}...")
             summary = await process_single_article(url, "scurt")
             summaries.append(summary)
+        
+        # Elimină emoji-uri duplicate consecutive
+        summaries = remove_duplicate_emojis_in_batch(summaries)
         
         final_text = "\n\n".join(summaries)
         
