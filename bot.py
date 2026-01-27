@@ -254,30 +254,50 @@ def fetch_article_content(url: str) -> str | None:
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # Elimină script, style, nav, footer, header
-            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form']):
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form', 'iframe']):
                 tag.decompose()
             
-            # Extrage text din <p>, <article>, <div class="content">
+            # Extrage text din multiple surse (în ordine de preferință)
             paragraphs = []
             
-            # Încearcă mai întâi <article>
+            # 1. Încearcă <article>
             article = soup.find('article')
             if article:
-                paragraphs = [p.get_text(strip=True) for p in article.find_all('p')]
+                paragraphs = [p.get_text(strip=True) for p in article.find_all(['p', 'div'])]
             
-            # Dacă nu găsește, încearcă toate <p>
+            # 2. Încearcă div-uri cu clase comune de conținut
+            if not paragraphs:
+                content_divs = soup.find_all('div', class_=lambda x: x and any(
+                    word in str(x).lower() for word in ['content', 'article', 'post', 'entry', 'text', 'body']
+                ))
+                for div in content_divs:
+                    paragraphs.extend([p.get_text(strip=True) for p in div.find_all(['p', 'div'])])
+            
+            # 3. Încearcă toate <p>
             if not paragraphs:
                 paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
             
-            # Filtrează paragrafe prea scurte
-            paragraphs = [p for p in paragraphs if len(p) > 50]
+            # 4. Ultimă șansă: orice div cu text substanțial
+            if not paragraphs:
+                all_divs = soup.find_all('div')
+                for div in all_divs:
+                    text = div.get_text(strip=True)
+                    # Verifică dacă div-ul are text substanțial și nu prea multe link-uri
+                    if len(text) > 100 and text.count('http') < 3:
+                        paragraphs.append(text)
+            
+            # Filtrează paragrafe prea scurte (redus la 30 caractere)
+            paragraphs = [p for p in paragraphs if len(p) > 30]
+            
+            # Ia primele paragrafe (max 50 pentru a evita spam)
+            paragraphs = paragraphs[:50]
             
             if paragraphs:
                 content = '\n\n'.join(paragraphs)
-                logger.info(f"✓ BeautifulSoup: {len(content)} caractere din {len(paragraphs)} paragrafe")
+                logger.info(f"✓ BeautifulSoup: {len(content)} caractere din {len(paragraphs)} fragmente")
                 return content
             else:
-                logger.warning("BeautifulSoup nu a găsit paragrafe substanțiale")
+                logger.warning("BeautifulSoup nu a găsit conținut substanțial")
                 
         except Exception as e:
             logger.error(f"Eroare BeautifulSoup: {type(e).__name__}: {str(e)[:100]}")
