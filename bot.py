@@ -370,26 +370,26 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
     """Asigură că fiecare rezumat are emoji la început (adaugă emoji relevant dacă lipsește)."""
     fixed_summaries = []
     
-    for summary in summaries:
+    for idx, summary in enumerate(summaries):
         # Skip mesaje de eroare
         if summary.startswith('❌'):
             fixed_summaries.append(summary)
             continue
         
-        # Verifică dacă conține emoji ORIUNDE la început (ignoră HTML tags)
-        # Elimină temporar HTML tags pentru a verifica emoji
-        text_without_html = re.sub(r'<[^>]+>', '', summary[:50])  # Check primele 50 char fără HTML
+        # Simplu: verifică dacă începe cu orice emoji common
+        # Lista de emoji-uri pe care botul le folosește
+        common_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇪🇺', '🇷🇺', '🇺🇸', '🇫🇷', '⚔️', '⚖️', 
+                         '💰', '💻', '🏥', '⚽', '🌍', '📚', '🚗', '⚡', '📰', '🚀']
         
-        has_emoji = False
-        # Verifică dacă PRIMELE caractere non-whitespace conțin emoji
-        match = re.search(r'^[\s]*[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\U0001F900-\U0001F9FF\U0001F1E0-\U0001F1FF]', text_without_html)
-        if match:
-            has_emoji = True
+        has_emoji = any(summary.startswith(emoji) for emoji in common_emojis)
+        
+        # Log pentru debugging
+        logger.info(f"Summary #{idx} has_emoji={has_emoji}: {summary[:60]}")
         
         # Dacă nu are emoji, determină unul relevant și adaugă-l
         if not has_emoji:
             relevant_emoji = get_relevant_emoji(summary)
-            logger.info(f"Adding relevant emoji {relevant_emoji} to: {summary[:50]}...")
+            logger.info(f"  → Adding {relevant_emoji}")
             fixed_summaries.append(f"{relevant_emoji} {summary}")
         else:
             fixed_summaries.append(summary)
