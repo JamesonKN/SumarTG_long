@@ -290,88 +290,108 @@ async def process_single_article(url: str, length_type: str) -> str:
     return summary
 
 
-def get_relevant_emoji(text: str) -> str:
-    """Determină emoji-ul relevant pe baza conținutului textului."""
+def get_relevant_emoji(text: str) -> list:
+    """Determină lista de emoji-uri relevante pe baza conținutului (în ordinea priorității)."""
     text_lower = text.lower()
+    relevant_emojis = []
     
     # Politică / Guvern
     if any(word in text_lower for word in ['parlament', 'guvern', 'ministru', 'deputat', 'legislativ', 'politic', 'alegeri', 'vot', 'lege', 'preşedinte', 'premier']):
-        return '🏛️'
+        relevant_emojis.append('🏛️')
     
     # Moldova
-    if any(word in text_lower for word in ['moldova', 'chișinău', 'chisinau', 'maia sandu', 'pas ']):
-        return '🇲🇩'
+    if any(word in text_lower for word in ['moldova', 'chișinău', 'chisinau', 'maia sandu', 'pas ', 'psrm']):
+        relevant_emojis.append('🇲🇩')
     
     # România
-    if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis']):
-        return '🇷🇴'
+    if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis', 'român']):
+        relevant_emojis.append('🇷🇴')
     
     # UE
-    if any(word in text_lower for word in ['uniunea europeană', 'uniunea europeana', 'bruxelles', 'comisia europeană', 'ue ']):
-        return '🇪🇺'
+    if any(word in text_lower for word in ['uniunea europeană', 'uniunea europeana', 'bruxelles', 'comisia europeană', 'ue ', 'european', 'ambasador ue']):
+        relevant_emojis.append('🇪🇺')
     
     # Rusia
-    if any(word in text_lower for word in ['rusia', 'kremlin', 'moscova', 'putin']):
-        return '🇷🇺'
+    if any(word in text_lower for word in ['rusia', 'kremlin', 'moscova', 'putin', 'rus']):
+        relevant_emojis.append('🇷🇺')
     
-    # SUA
-    if any(word in text_lower for word in ['sua', 'statele unite', 'washington', 'america', 'trump', 'biden']):
-        return '🇺🇸'
+    # SUA / America
+    if any(word in text_lower for word in ['sua', 'statele unite', 'washington', 'america', 'trump', 'biden', 'american']):
+        relevant_emojis.append('🇺🇸')
     
     # Franța
     if any(word in text_lower for word in ['franţa', 'franta', 'paris', 'macron', 'francez']):
-        return '🇫🇷'
+        relevant_emojis.append('🇫🇷')
+    
+    # Spania
+    if any(word in text_lower for word in ['spania', 'madrid', 'spaniol', 'espanyol']):
+        relevant_emojis.append('🇪🇸')
+    
+    # Italia
+    if any(word in text_lower for word in ['italia', 'italian', 'roma', 'milan']):
+        relevant_emojis.append('🇮🇹')
+    
+    # Germania
+    if any(word in text_lower for word in ['germania', 'berlin', 'german']):
+        relevant_emojis.append('🇩🇪')
+    
+    # Marea Britanie
+    if any(word in text_lower for word in ['marea britanie', 'anglia', 'londra', 'britanic']):
+        relevant_emojis.append('🇬🇧')
     
     # Război / Conflict / Armată
     if any(word in text_lower for word in ['război', 'razboi', 'conflict', 'militar', 'armată', 'armata', 'atac', 'arme', 'soldaţ', 'soldat']):
-        return '⚔️'
+        relevant_emojis.append('⚔️')
     
     # Justiție / Lege
-    if any(word in text_lower for word in ['judecător', 'judecator', 'tribunal', 'condamnat', 'sentinţă', 'sentinta', 'proces', 'procuror', 'avocat', 'instanţă', 'instanta']):
-        return '⚖️'
+    if any(word in text_lower for word in ['judecător', 'judecator', 'tribunal', 'condamnat', 'sentinţă', 'sentinta', 'proces', 'procuror', 'avocat', 'instanţă', 'instanta', 'penal', 'juridic']):
+        relevant_emojis.append('⚖️')
     
-    # Economie / Bani
-    if any(word in text_lower for word in ['economie', 'bancă', 'banca', 'bani', 'preţ', 'pret', 'dolar', 'euro', 'inflație', 'inflatie', 'salariu', 'buget', 'fiscal']):
-        return '💰'
+    # Economie / Bani / Business
+    if any(word in text_lower for word in ['economie', 'bancă', 'banca', 'bani', 'preţ', 'pret', 'dolar', 'euro', 'inflație', 'inflatie', 'salariu', 'buget', 'fiscal', 'financiar', 'investiţie']):
+        relevant_emojis.append('💰')
     
-    # Tehnologie / Digital
-    if any(word in text_lower for word in ['tehnologie', 'tehnologic', 'digital', 'internet', 'computer', 'software', 'ai ', 'inteligență artificială', 'crypto', 'blockchain']):
-        return '💻'
+    # Tehnologie / Digital / Crypto
+    if any(word in text_lower for word in ['tehnologie', 'tehnologic', 'digital', 'internet', 'computer', 'software', 'ai ', 'inteligență artificială', 'crypto', 'blockchain', 'bitcoin']):
+        relevant_emojis.append('💻')
     
     # Sănătate / Medical
     if any(word in text_lower for word in ['sănătate', 'sanatate', 'medical', 'spital', 'doctor', 'pacient', 'boală', 'boala', 'virus', 'vaccin', 'tratament']):
-        return '🏥'
+        relevant_emojis.append('🏥')
     
     # Sport
     if any(word in text_lower for word in ['fotbal', 'meci', 'echipă', 'echipa', 'campionat', 'jucător', 'jucator', 'sport', 'olimpic', 'antrenor']):
-        return '⚽'
+        relevant_emojis.append('⚽')
     
-    # Mediu / Natură
-    if any(word in text_lower for word in ['mediu', 'climă', 'clima', 'poluare', 'ecologic', 'natură', 'natura', 'pădure', 'padure']):
-        return '🌍'
+    # Mediu / Natură / Climă
+    if any(word in text_lower for word in ['mediu', 'climă', 'clima', 'poluare', 'ecologic', 'natură', 'natura', 'pădure', 'padure', 'meteo', 'vreme']):
+        relevant_emojis.append('🌍')
     
     # Educație
-    if any(word in text_lower for word in ['educaţie', 'educatie', 'şcoală', 'scoala', 'universitate', 'student', 'profesor', 'elev']):
-        return '📚'
+    if any(word in text_lower for word in ['educaţie', 'educatie', 'şcoală', 'scoala', 'universitate', 'student', 'profesor', 'elev', 'grădiniță', 'gradinita']):
+        relevant_emojis.append('📚')
     
     # Transport / Auto
-    if any(word in text_lower for word in ['maşină', 'masina', 'auto', 'trafic', 'şofer', 'sofer', 'drum', 'accident']):
-        return '🚗'
+    if any(word in text_lower for word in ['maşină', 'masina', 'auto', 'trafic', 'şofer', 'sofer', 'drum', 'accident', 'transport']):
+        relevant_emojis.append('🚗')
     
-    # Energie
-    if any(word in text_lower for word in ['energie', 'electric', 'gaz', 'petrol', 'combustibil', 'centrală', 'centrala']):
-        return '⚡'
+    # Energie / Electric
+    if any(word in text_lower for word in ['energie', 'electric', 'gaz', 'petrol', 'combustibil', 'centrală', 'centrala', 'curent']):
+        relevant_emojis.append('⚡')
     
-    # Default - știri generale
-    return '📰'
+    # Dacă nu s-a găsit nimic specific, returnează emoji-uri generale
+    if not relevant_emojis:
+        relevant_emojis = ['📰', '🔥', '✨', '📊', '🎯', '⚠️', '🚀']
+    
+    return relevant_emojis
 
 
 def ensure_emoji_in_summaries(summaries: list) -> list:
-    """Asigură că fiecare rezumat are emoji UNIC la început - fără duplicate în batch."""
+    """Asigură că fiecare rezumat are emoji UNIC și RELEVANT la început."""
     fixed_summaries = []
     used_emojis = set()  # Track emoji-uri deja folosite
     
-    # Lista completă de emoji-uri disponibile (în ordine de prioritate)
+    # Lista completă de emoji-uri disponibile ca fallback
     all_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇪🇺', '🇷🇺', '🇺🇸', '🇫🇷', '⚔️', '⚖️', 
                   '💰', '💻', '🏥', '⚽', '🌍', '📚', '🚗', '⚡', '📰', '🚀', '🇪🇸',
                   '🇮🇹', '🇩🇪', '🇬🇧', '🇨🇳', '🇯🇵', '🔥', '✨', '📊', '🎯', '⚠️']
@@ -392,43 +412,68 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
         if current_emoji:
             # Are emoji - verifică dacă e duplicat
             if current_emoji in used_emojis:
-                # DUPLICAT! Înlocuiește cu alt emoji relevant care nu a fost folosit
-                logger.info(f"Summary #{idx}: duplicate emoji {current_emoji}, replacing...")
+                # DUPLICAT! Găsește alt emoji RELEVANT
+                logger.info(f"Summary #{idx}: duplicate emoji {current_emoji}, finding relevant replacement...")
                 
-                # Găsește emoji relevant care NU a fost folosit
-                relevant_emoji = get_relevant_emoji(summary)
+                # Obține lista de emoji-uri relevante pentru conținut
+                relevant_emojis = get_relevant_emoji(summary)
                 
-                # Dacă relevant_emoji e deja folosit, alege orice altul disponibil
-                if relevant_emoji in used_emojis:
-                    for alt_emoji in all_emojis:
-                        if alt_emoji not in used_emojis:
-                            relevant_emoji = alt_emoji
+                # Alege primul emoji relevant care NU a fost folosit
+                chosen_emoji = None
+                for emoji in relevant_emojis:
+                    if emoji not in used_emojis:
+                        chosen_emoji = emoji
+                        break
+                
+                # Dacă toți emoji-ii relevanți sunt folosiți, alege orice altul disponibil
+                if not chosen_emoji:
+                    for emoji in all_emojis:
+                        if emoji not in used_emojis:
+                            chosen_emoji = emoji
                             break
+                
+                # Dacă nu mai sunt emoji-uri disponibile (batch >30), folosește primul relevant
+                if not chosen_emoji:
+                    chosen_emoji = relevant_emojis[0] if relevant_emojis else '📰'
                 
                 # Înlocuiește emoji-ul vechi cu cel nou
                 summary_without_emoji = summary[len(current_emoji):].lstrip()
-                fixed_summaries.append(f"{relevant_emoji} {summary_without_emoji}")
-                used_emojis.add(relevant_emoji)
-                logger.info(f"  → Replaced {current_emoji} with {relevant_emoji}")
+                fixed_summaries.append(f"{chosen_emoji} {summary_without_emoji}")
+                used_emojis.add(chosen_emoji)
+                logger.info(f"  → Replaced {current_emoji} with relevant {chosen_emoji}")
             else:
                 # Emoji unic, păstrează-l
                 fixed_summaries.append(summary)
                 used_emojis.add(current_emoji)
                 logger.info(f"Summary #{idx}: keeping unique emoji {current_emoji}")
         else:
-            # Nu are emoji - adaugă unul care nu a fost folosit
-            relevant_emoji = get_relevant_emoji(summary)
+            # Nu are emoji - adaugă unul RELEVANT care nu a fost folosit
+            logger.info(f"Summary #{idx}: no emoji, finding relevant one...")
             
-            # Dacă relevant_emoji e deja folosit, alege altul
-            if relevant_emoji in used_emojis:
-                for alt_emoji in all_emojis:
-                    if alt_emoji not in used_emojis:
-                        relevant_emoji = alt_emoji
+            # Obține lista de emoji-uri relevante
+            relevant_emojis = get_relevant_emoji(summary)
+            
+            # Alege primul emoji relevant care NU a fost folosit
+            chosen_emoji = None
+            for emoji in relevant_emojis:
+                if emoji not in used_emojis:
+                    chosen_emoji = emoji
+                    break
+            
+            # Dacă toți emoji-ii relevanți sunt folosiți, alege orice altul disponibil
+            if not chosen_emoji:
+                for emoji in all_emojis:
+                    if emoji not in used_emojis:
+                        chosen_emoji = emoji
                         break
             
-            logger.info(f"Summary #{idx}: adding unique emoji {relevant_emoji}")
-            fixed_summaries.append(f"{relevant_emoji} {summary}")
-            used_emojis.add(relevant_emoji)
+            # Dacă nu mai sunt emoji-uri disponibile, folosește primul relevant
+            if not chosen_emoji:
+                chosen_emoji = relevant_emojis[0] if relevant_emojis else '📰'
+            
+            logger.info(f"  → Adding relevant {chosen_emoji}")
+            fixed_summaries.append(f"{chosen_emoji} {summary}")
+            used_emojis.add(chosen_emoji)
     
     return fixed_summaries
 
