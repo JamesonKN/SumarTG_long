@@ -4,7 +4,7 @@ Comenzi: /scurt (250-300), /mediu (500-600), /lung (850-950)
 Batch: max 7 linkuri → rezumate scurte
 Default fără comandă: lung
 
-# În terminal:
+# În terminal :
    git pull
    # Modifică ceva minor în bot.py (adaugă un comentariu)
    git add bot.py
