@@ -202,11 +202,34 @@ def format_summary_html(summary: str, url: str = None) -> str:
 def fetch_article_content(url: str) -> str | None:
     """Descarcă și extrage conținutul unui articol."""
     try:
+        # Metoda 1: Trafilatura standard
         downloaded = trafilatura.fetch_url(url)
         if downloaded:
-            return trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
+            content = trafilatura.extract(downloaded, include_comments=False, include_tables=False, no_fallback=False)
+            if content:
+                return content
+        
+        # Metoda 2: Fallback pentru ipn.md - folosește Jina AI Reader
+        if 'ipn.md' in url.lower():
+            logger.info(f"Fallback Jina AI pentru ipn.md: {url[:50]}")
+            try:
+                import httpx
+                jina_url = f"https://r.jina.ai/{url}"
+                response = httpx.get(jina_url, timeout=15.0, follow_redirects=True)
+                if response.status_code == 200:
+                    content = response.text
+                    # Curăță markdown headers și formatare excesivă
+                    content = re.sub(r'^#+\s+', '', content, flags=re.MULTILINE)
+                    content = re.sub(r'\n{3,}', '\n\n', content)
+                    if len(content) > 200:
+                        logger.info(f"✓ Jina AI: {len(content)} caractere")
+                        return content
+            except Exception as e:
+                logger.warning(f"Jina AI eșuat: {e}")
+        
     except Exception as e:
         logger.error(f"Eroare extragere: {e}")
+    
     return None
 
 
