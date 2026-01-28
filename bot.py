@@ -443,6 +443,76 @@ def get_relevant_emoji(text: str) -> list:
     if any(word in text_lower for word in ['industrie', 'fabrică', 'fabrica', 'producţie', 'productie', 'industrial', 'uzină', 'uzina']):
         relevant_emojis.append('🏭')
     
+    # === EMOJI-URI PENTRU JURNALISM ===
+    
+    # Breaking News / Știri importante
+    if any(word in text_lower for word in ['breaking', 'urgent', 'important', 'crucial', 'major', 'alertă', 'alerta']):
+        relevant_emojis.append('🔴')
+    
+    # Controverse / Scandaluri / Fierbinte
+    if any(word in text_lower for word in ['scandal', 'controversă', 'controversa', 'acuzaţie', 'acuzatie', 'critica', 'polemică', 'polemica', 'fierbinte']):
+        relevant_emojis.append('🔥')
+    
+    # Investigații / Cercetări / Spotlight
+    if any(word in text_lower for word in ['investigaţie', 'investigatie', 'cercetare', 'anchetă', 'ancheta', 'descoperire', 'dezvăluire', 'dezvaluire']):
+        relevant_emojis.append('🔦')
+    
+    # Analize / Idei / Perspective
+    if any(word in text_lower for word in ['analiză', 'analiza', 'opinie', 'perspectivă', 'perspectiva', 'viziune', 'strategie', 'plan']):
+        relevant_emojis.append('💡')
+    
+    # Alertă / Urgență / Atenție
+    if any(word in text_lower for word in ['alertă', 'alerta', 'urgenţă', 'urgenta', 'pericol', 'risc', 'atenţie', 'atentie', 'avertisment']):
+        relevant_emojis.append('🚨')
+    
+    # Locație / Punct de interes / Eveniment local
+    if any(word in text_lower for word in ['locaţie', 'locatie', 'amplasament', 'zonă', 'zona', 'cartier', 'regiune', 'localitate']):
+        relevant_emojis.append('📍')
+    
+    # Trafic / Situații rutiere
+    if any(word in text_lower for word in ['trafic', 'circulaţie', 'circulatie', 'blocaj', 'ambuteiaj', 'coadă', 'coada']):
+        relevant_emojis.append('🚦')
+    
+    # Timp / Deadline / Oră / Schedule
+    if any(word in text_lower for word in ['deadline', 'termen', 'oră', 'ora', 'program', 'schedule', 'temporizare']):
+        relevant_emojis.append('⏰')
+    
+    # Gaming / Esports / Jocuri
+    if any(word in text_lower for word in ['gaming', 'joc', 'gamer', 'esports', 'videogame', 'playstation', 'xbox', 'console']):
+        relevant_emojis.append('🕹')
+    
+    # Video / Film / Cinema
+    if any(word in text_lower for word in ['video', 'film', 'cinema', 'cinematograf', 'peliculă', 'pelicula', 'regizor']):
+        relevant_emojis.append('🎥')
+    
+    # TV / Televiziune / Emisiuni
+    if any(word in text_lower for word in ['televiziune', 'emisiune', 'show', 'program tv', 'post tv', 'canal tv']):
+        relevant_emojis.append('📺')
+    
+    # Foto / Fotografie / Imagini
+    if any(word in text_lower for word in ['foto', 'fotografie', 'imagine', 'imagini', 'poză', 'poza', 'fotograf']):
+        relevant_emojis.append('📸')
+    
+    # Informații cheie / Esențial / Key points
+    if any(word in text_lower for word in ['cheie', 'esenţial', 'esential', 'principal', 'fundamental', 'crucial', 'vital']):
+        relevant_emojis.append('🔑')
+    
+    # Scandaluri / Exploziv / Bombă
+    if any(word in text_lower for word in ['exploziv', 'bombă', 'bomba', 'şocant', 'socant', 'devastator']):
+        relevant_emojis.append('🧨')
+    
+    # Updates / Notificări / Live
+    if any(word in text_lower for word in ['update', 'actualizare', 'notificare', 'live', 'direct', 'în timp real']):
+        relevant_emojis.append('📟')
+    
+    # Euro / Monedă / Finanțe UE
+    if any(word in text_lower for word in ['euro', 'monedă', 'moneda', 'curs valutar', 'schimb valutar']):
+        relevant_emojis.append('💶')
+    
+    # Energie electrică / Electricitate
+    if any(word in text_lower for word in ['electricitate', 'electric', 'priză', 'priza', 'tensiune', 'voltaj']):
+        relevant_emojis.append('🔌')
+    
     # Dacă nu s-a găsit nimic specific, returnează emoji-uri generale
     if not relevant_emojis:
         relevant_emojis = ['📰', '🔥', '✨', '📊', '🎯', '⚠️', '🚀']
@@ -459,7 +529,10 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
     all_emojis = ['🏛️', '🇲🇩', '🇷🇴', '🇺🇦', '🇵🇱', '🇹🇷', '🇪🇺', '🇷🇺', '🇺🇸', '🇨🇦',
                   '🇫🇷', '🇪🇸', '🇮🇹', '🇩🇪', '🇬🇧', '🇦🇺', '🇮🇳', '🇧🇷', '🇨🇳', '🇯🇵',
                   '⚔️', '🛡️', '⚖️', '💰', '🏦', '💻', '🌐', '📱', '🏥', '⚽', '🌍',
-                  '📚', '🎓', '🚗', '✈️', '⚡', '🏭', '📰', '🚀', '🔥', '✨', '📊', '🎯', '⚠️']
+                  '📚', '🎓', '🚗', '✈️', '⚡', '🏭',
+                  '🔴', '🔥', '🔦', '💡', '🚨', '📍', '🚦', '⏰', '🕹', '🎥', '📺',
+                  '📸', '🔑', '🧨', '📟', '💶', '🔌', '📲',
+                  '📰', '🚀', '✨', '📊', '🎯', '⚠️']
     
     for idx, summary in enumerate(summaries):
         # Skip mesaje de eroare
