@@ -71,6 +71,9 @@ def clean_telegram_footer(text: str) -> str:
         r'Прислать контент.*$', r'Наш канал.*$', r'Читать далее.*$', r'Источник.*$',
         r'Subscribe to .*$', r'Follow us.*$', r'Join our.*$', r'Send content.*$',
         r'Abonează-te la .*$', r'Urmărește-ne.*$', r'Canalul nostru.*$', r'\s*\|\s*$',
+        r'🔴.*в MAX.*$', r'🔵.*в MAX.*$', r'⚪.*в MAX.*$',  # MAX links
+        r'🔴.*Спутник.*$', r'Спутник.*в MAX.*$',  # Sputnik
+        r'^\s*[🔴🔵⚪🟢🟡🟣].*https?://.*$',  # Orice footer cu emoji + link
     ]
     
     lines = text.split('\n')
@@ -277,9 +280,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome, parse_mode=ParseMode.HTML)
 
 
-async def process_single_article(url: str, length_type: str) -> str:
-    """Procesează un singur articol și returnează rezumatul."""
+async def process_single_article(url: str, length_type: str, fallback_text: str = None) -> str:
+    """Procesează un singur articol și returnează rezumatul.
+    
+    Args:
+        url: URL-ul articolului
+        length_type: Tipul de lungime (scurt/mediu/lung)
+        fallback_text: Text de rezervă dacă nu poate accesa URL-ul
+    """
     content = fetch_article_content(url)
+    
+    # Dacă nu poate accesa link-ul dar are text fallback, folosește textul
+    if not content and fallback_text:
+        logger.info(f"Nu pot accesa {url}, folosesc textul forward-at ca fallback")
+        cleaned_text = clean_telegram_footer(fallback_text)
+        if len(cleaned_text) >= 50:
+            summary, error = generate_summary(cleaned_text, url=url, length_type=length_type)
+            if summary:
+                return summary
+            else:
+                logger.warning(f"Eroare la generarea sumarului din fallback text: {error}")
+        else:
+            logger.warning(f"Fallback text prea scurt: {len(cleaned_text)} caractere")
+    
+    # Dacă nu are content deloc, întoarce eroare
     if not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
@@ -695,7 +719,9 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Un singur link
     if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], length_type)
+        # Extrage textul fără comandă pentru a-l folosi ca fallback
+        text_without_command = re.sub(r'^/\w+\s+', '', text).strip()
+        summary = await process_single_article(article_urls[0], length_type, fallback_text=text_without_command)
         await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
     else:
         # Batch - max 7, folosește tipul specificat
@@ -775,7 +801,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Un singur link - rezumat LUNG (default)
     if len(article_urls) == 1:
-        summary = await process_single_article(article_urls[0], "lung")
+        summary = await process_single_article(article_urls[0], "lung", fallback_text=text)
         await processing_msg.edit_text(summary, parse_mode=ParseMode.HTML)
     else:
         # Batch - max 7, rezumate SCURTE
