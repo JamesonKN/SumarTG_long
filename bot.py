@@ -615,6 +615,48 @@ def ensure_emoji_in_summaries(summaries: list) -> list:
     
     return fixed_summaries
 
+
+def categorize_summaries_moldova_externe(summaries: list) -> tuple:
+    """
+    Categorisează rezumatele în două grupuri: Moldova și Externe.
+    Returnează (moldova_summaries, externe_summaries).
+    """
+    moldova_keywords = [
+        'moldova', 'moldovean', 'moldovenesc', 'moldovă', 'moldovenească',
+        'chișinău', 'chisinau', 'republica moldova', 'r. moldova', 'r.moldova',
+        'bălți', 'balti', 'cahul', 'soroca', 'orhei', 'ungheni', 'comrat', 
+        'tiraspol', 'transnistria', 'găgăuzia', 'gagauzia',
+        'parlamentul republicii moldova', 'guvernul republicii moldova',
+        'maia sandu', 'dorin recean', 'igor grosu',
+        'serviciul fiscal', 'serviciul vamal',
+        'pas ', 'psrm', 'partidul socialiștilor', 'partidul acțiune și solidaritate',
+        'пкрм', 'partidul comuniștilor', 'pdm', 'partidul democraților',
+        'prut', 'dniestru', 'nistru'
+    ]
+    
+    moldova_summaries = []
+    externe_summaries = []
+    
+    for summary in summaries:
+        # Convertește la lowercase și elimină diacritice pentru căutare
+        summary_lower = summary.lower()
+        summary_normalized = summary_lower.replace('ă', 'a').replace('â', 'a').replace('î', 'i').replace('ș', 's').replace('ț', 't')
+        
+        # Verifică dacă conține keywords despre Moldova
+        is_moldova = any(
+            keyword in summary_lower or keyword in summary_normalized 
+            for keyword in moldova_keywords
+        )
+        
+        if is_moldova:
+            moldova_summaries.append(summary)
+        else:
+            externe_summaries.append(summary)
+    
+    logger.info(f"Categorizare: {len(moldova_summaries)} Moldova, {len(externe_summaries)} Externe")
+    return moldova_summaries, externe_summaries
+
+
 async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TYPE, length_type: str):
     """Handler comun pentru comenzile /scurt, /mediu, /lung."""
     text = update.message.text or ""
@@ -646,7 +688,21 @@ async def handle_length_command(update: Update, context: ContextTypes.DEFAULT_TY
         # Asigură că toate rezumatele au emoji-uri UNICE (fără duplicate)
         summaries = ensure_emoji_in_summaries(summaries)
         
-        final_text = "\n\n".join(summaries)
+        # Dacă sunt 4+ știri, sortează: Moldova first, Externe last
+        if len(urls_to_process) >= 4:
+            moldova_summaries, externe_summaries = categorize_summaries_moldova_externe(summaries)
+            
+            # Construiește textul final cu separator dacă există ambele categorii
+            if moldova_summaries and externe_summaries:
+                final_text = "\n\n".join(moldova_summaries)
+                final_text += "\n\n::: EXTERNE\n\n"
+                final_text += "\n\n".join(externe_summaries)
+            else:
+                # Toate sunt Moldova sau toate sunt externe
+                final_text = "\n\n".join(summaries)
+        else:
+            # Sub 4 știri, păstrează ordinea originală
+            final_text = "\n\n".join(summaries)
         
         # Telegram are limită de 4096 caractere
         if len(final_text) > 4000:
@@ -712,7 +768,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Asigură că toate rezumatele au emoji-uri UNICE (fără duplicate)
         summaries = ensure_emoji_in_summaries(summaries)
         
-        final_text = "\n\n".join(summaries)
+        # Dacă sunt 4+ știri, sortează: Moldova first, Externe last
+        if len(urls_to_process) >= 4:
+            moldova_summaries, externe_summaries = categorize_summaries_moldova_externe(summaries)
+            
+            # Construiește textul final cu separator dacă există ambele categorii
+            if moldova_summaries and externe_summaries:
+                final_text = "\n\n".join(moldova_summaries)
+                final_text += "\n\n::: EXTERNE\n\n"
+                final_text += "\n\n".join(externe_summaries)
+            else:
+                # Toate sunt Moldova sau toate sunt externe
+                final_text = "\n\n".join(summaries)
+        else:
+            # Sub 4 știri, păstrează ordinea originală
+            final_text = "\n\n".join(summaries)
         
         if len(final_text) > 4000:
             final_text = final_text[:4000] + "\n\n⚠️ Textul a fost trunchiat."
