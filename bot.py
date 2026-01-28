@@ -65,7 +65,12 @@ Răspunde DOAR cu rezumatul (emoji + text{"cu un cuvânt în acolade" if has_url
 
 
 def clean_telegram_footer(text: str) -> str:
-    """Curăță footerele de Telegram."""
+    """Curăță footerele de Telegram și link-urile din paranteze."""
+    
+    # Mai întâi elimină link-urile din paranteze rotunde din mijlocul textului
+    # Exemplu: "текст (https://t.me/channel/123) текст" -> "текст  текст"
+    text = re.sub(r'\s*\(https?://[^)]+\)', '', text)
+    
     footer_patterns = [
         r'Подписаться на .*$', r'Подпишись на .*$', r'Подписывайтесь.*$',
         r'Прислать контент.*$', r'Наш канал.*$', r'Читать далее.*$', r'Источник.*$',
@@ -85,6 +90,7 @@ def clean_telegram_footer(text: str) -> str:
             if re.search(pattern, line, re.IGNORECASE):
                 is_footer = True
                 break
+        # Verifică dacă linia conține doar un link (sau link cu spații/caractere)
         if re.match(r'^\s*https?://t\.me/\S*\s*$', line):
             is_footer = True
         if re.match(r'^[\s|/]*https?://\S+[\s|/]*$', line):
@@ -93,7 +99,9 @@ def clean_telegram_footer(text: str) -> str:
             cleaned_lines.append(line)
     
     cleaned_text = '\n'.join(cleaned_lines)
-    cleaned_text = re.sub(r'\s*\(https?://t\.me/[^)]+\)', '', cleaned_text)
+    # Elimină spații multiple consecutive
+    cleaned_text = re.sub(r'\s{3,}', '  ', cleaned_text)
+    # Elimină newline-uri multiple
     cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
     return cleaned_text.strip()
 
@@ -119,7 +127,8 @@ def extract_urls_from_entities(message) -> list:
 def filter_article_urls(urls: list) -> list:
     """Filtrează doar URL-uri către articole."""
     ignore_domains = ['t.me', 'telegram.me', 'twitter.com', 'x.com', 
-                      'facebook.com', 'instagram.com', 'tiktok.com', 'youtube.com', 'youtu.be']
+                      'facebook.com', 'instagram.com', 'tiktok.com', 'youtube.com', 'youtu.be',
+                      'max.ru']  # MAX app links
     
     article_urls = []
     for url in urls:
@@ -294,20 +303,28 @@ async def process_single_article(url: str, length_type: str, fallback_text: str 
     if not content and fallback_text:
         logger.info(f"Nu pot accesa {url}, folosesc textul forward-at ca fallback")
         cleaned_text = clean_telegram_footer(fallback_text)
+        
         if len(cleaned_text) >= 50:
             summary, error = generate_summary(cleaned_text, url=url, length_type=length_type)
             if summary:
                 return summary
             else:
                 logger.warning(f"Eroare la generarea sumarului din fallback text: {error}")
+                return f"❌ Eroare la procesare: {error}"
         else:
             logger.warning(f"Fallback text prea scurt: {len(cleaned_text)} caractere")
+            return f"❌ Textul e prea scurt ({len(cleaned_text)} caractere)"
     
-    # Dacă nu are content deloc, întoarce eroare
+    # Dacă nu are content și nici fallback, întoarce eroare
     if not content:
         return f"❌ Nu am putut extrage: {url[:50]}..."
     
+    # Are content de la URL, generează sumar normal
     summary, error = generate_summary(content, url, length_type)
+    if not summary:
+        return f"❌ Eroare pentru {url[:50]}...: {error}"
+    
+    return summary
     if not summary:
         return f"❌ Eroare pentru {url[:50]}...: {error}"
     
