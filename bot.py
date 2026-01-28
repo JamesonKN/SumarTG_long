@@ -295,16 +295,33 @@ def get_relevant_emoji(text: str) -> list:
     text_lower = text.lower()
     relevant_emojis = []
     
+    # Detectăm mai întâi dacă este despre Moldova (pentru prioritizare)
+    moldova_keywords = ['moldova', 'moldovean', 'moldovenesc', 'chișinău', 'chisinau', 
+                        'republica moldova', 'r. moldova', 'maia sandu', 'pas ', 'psrm', 
+                        'guvernul moldovean', 'guvernul republicii moldova',
+                        'parlamentul republicii moldova', 'anre', 'dorin recean', 
+                        'igor grosu', 'ala nemerenco', 'serviciul fiscal', 'serviciul vamal',
+                        'man ', 'mișcarea alternativa', 'miscarea alternativa',
+                        'partidul nostru', 'partidul sor', 'partidul șor',
+                        'bălți', 'balti', 'dereneu', 'călărași', 'calarasi',
+                        'transnistria', 'găgăuzia', 'gagauzia', 'comrat',
+                        'prut', 'dniestru', 'nistru', 'mitropolia basarabiei']
+    is_about_moldova = any(word in text_lower for word in moldova_keywords)
+    
+    # Prioritate pentru Moldova - dacă detectăm că este despre Moldova, 🇲🇩 vine PRIMUL
+    if is_about_moldova:
+        relevant_emojis.append('🇲🇩')
+    
     # Politică / Guvern
     if any(word in text_lower for word in ['parlament', 'guvern', 'ministru', 'deputat', 'legislativ', 'politic', 'alegeri', 'vot', 'lege', 'preşedinte', 'premier']):
         relevant_emojis.append('🏛️')
     
-    # Moldova
-    if any(word in text_lower for word in ['moldova', 'chișinău', 'chisinau', 'maia sandu', 'pas ', 'psrm']):
+    # Moldova - adăugăm din nou doar dacă NU e deja primul
+    if not is_about_moldova and any(word in text_lower for word in moldova_keywords):
         relevant_emojis.append('🇲🇩')
     
     # România
-    if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis', 'român']):
+    if any(word in text_lower for word in ['românia', 'romania', 'bucureşti', 'bucuresti', 'iohannis', 'român ', 'românesc', 'românească']):
         relevant_emojis.append('🇷🇴')
     
     # Ucraina
@@ -626,12 +643,17 @@ def categorize_summaries_moldova_externe(summaries: list) -> tuple:
         'chișinău', 'chisinau', 'republica moldova', 'r. moldova', 'r.moldova',
         'bălți', 'balti', 'cahul', 'soroca', 'orhei', 'ungheni', 'comrat', 
         'tiraspol', 'transnistria', 'găgăuzia', 'gagauzia',
-        'parlamentul republicii moldova', 'guvernul republicii moldova',
-        'maia sandu', 'dorin recean', 'igor grosu',
-        'serviciul fiscal', 'serviciul vamal',
+        'parlamentul republicii moldova', 'guvernul republicii moldova', 'guvernul moldovean',
+        'maia sandu', 'dorin recean', 'igor grosu', 'ala nemerenco',
+        'serviciul fiscal', 'serviciul vamal', 'serviciul hidrometeorologic',
+        'anre', 'agentia nationala pentru reglementare energetica',
         'pas ', 'psrm', 'partidul socialiștilor', 'partidul acțiune și solidaritate',
         'пкрм', 'partidul comuniștilor', 'pdm', 'partidul democraților',
-        'prut', 'dniestru', 'nistru'
+        'man ', 'mișcarea alternativa națională', 'miscarea alternativa nationala',
+        'partidul nostru', 'blocul comuniștilor', 'partidul șor', 'partidul sor',
+        'prut', 'dniestru', 'nistru',
+        'mitropolia basarabiei', 'biserica din moldova',
+        'dereneu', 'călărași', 'calarasi', 'fălești', 'falesti', 'edineț', 'edinet'
     ]
     
     moldova_summaries = []
